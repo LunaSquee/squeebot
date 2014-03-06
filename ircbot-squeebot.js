@@ -2,7 +2,7 @@
 'use strict';
 // IRC bot by djazz
 // djazz is best <3 - LunaSquee
-
+// A bot thingy I love :3
 // Modules
 //var http = require('http');
 var irc = require('irc');

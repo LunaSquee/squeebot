@@ -1,0 +1,13 @@
+This is a IRC bot made by LunaSquee and djazz
+It uses node.js to run and the following modules are required:
+youtube-feeds
+irc
+colors
+request
+
+You must make a file called "login_details.json" that has your username and password
+Template:
+{
+	"username":"MyIRCBot",
+	"password":"*****"
+}
