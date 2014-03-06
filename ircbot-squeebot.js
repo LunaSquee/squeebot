@@ -1,0 +1,298 @@
+#!/usr/bin/env node
+'use strict';
+// IRC bot by djazz
+// djazz is best <3 - LunaSquee
+
+// Modules
+//var http = require('http');
+var irc = require('irc');
+var colors = require('colors');
+var util = require('util');
+var readline = require('readline');
+var youtube = require('youtube-feeds')
+var request = require('request')
+var loginDetails = require('./login-details.json');
+
+// Config
+var SERVER = 'irc.canternet.org';	// The server we want to connect to
+var PORT = 6667;			// The connection port which is usually 6667
+var NICK = loginDetails.username;	// The bot's nickname 
+var IDENT = loginDetails.password;	// Password of the bot. Set to null to not use password login.
+var REALNAME = 'LunaSquee\'s bot';	// Real name of the bot
+var CHANNEL = '#BronyTalk';			// The default channel for the bot 
+
+var airDate = Date.UTC(2013, 11-1, 23, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
+var week = 7*24*60*60*1000;
+
+function getCurrentSongData(callback) {
+	request({
+		url: "http://djazz.se:8000/info_json.xsl",
+		json: true
+	}, function (error, response, body) {
+		if (!error && response.statusCode === 200) {
+			if(body["/mpd"] != null) {
+				var theTitle = new Buffer(body["/mpd"].title, "binary").toString("utf8");
+				var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
+				if(splitUp.length===2) {
+					theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
+				}
+				callback(theTitle, body["/mpd"].listeners, true);
+			} else {
+				callback("The music stream is offline", "", false);
+			}
+		} 
+	});
+}
+
+function findUrls(text) {
+    var source = (text || '').toString();
+    var urlArray = [];
+    var url;
+    var matchArray;
+    var regexToken = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g;
+
+    while((matchArray = regexToken.exec(source))!== null) {
+        var token = matchArray[0];
+		if(token.indexOf("youtube.com/watch?v=") != -1) {
+			urlArray.push(token);
+		} else if(token.indexOf("youtu.be/") != -1) {
+			urlArray.push(token);
+		}
+    }
+    return urlArray;
+}
+
+function handleMessage(nick, message, simplified, isMentioned, isPM) {
+	var target = isPM ? nick : CHANNEL;
+
+	if (simplified[0] === "!testc") {
+		sendPM(target, "Test success!");
+	} else if (isMentioned) {
+		sendPM(target, nick+": Hello! Do !commc for my commands :3");
+	} else if (simplified[0] === "!commc") {
+		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commc - All commands");
+		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [season4/djazz/music]- Link to livestream, !np - Currently playing song, !music - The music stream by djazz");
+	} else if (simplified[0] === "!rules") {
+		sendPM(target, nick+": [1] - No spam \n [2] - No spoilers \n [3] - No bots(Squeebot is the only bot for now!) \n [4] - No bad language \n [5] - No insulting");
+	}
+	
+	if(simplified[0] === "!infoc") {
+		sendPM(target, nick+": IRC channel created by LunaSquee and Dangershy(djazz).");
+	}
+	else if(simplified[0] === "!episodes") {
+		sendPM(target, nick+": Watch MLP Episodes: http://mlp-episodes.tk/");
+	} 
+	else if(simplified[0] === "!stream") {
+		if(simplified[1] === "season4") {
+			sendPM(target, nick+": Season 4 live: http://mlp-episodes.tk/livestream.html");
+		} else if(simplified[1] === "djazz") {
+			sendPM(target, nick+": Watch djazz's livestream: http://djazz.se/live/");
+		} else if(simplified[1] === "music") {
+			sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd");
+			getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e);} else { sendPM(target, d)}});
+		} else {
+			sendPM(target, nick+": Season 4 live: http://mlp-episodes.tk/livestream.html or Watch djazz's livestream: http://djazz.se/live/");
+		}
+	} 
+	else if(simplified[0] === "!music") {
+		sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd | Say !np to see which song is playing!");
+	} 
+	else if(simplified[0] === "!hug") {
+		sendPM(target, "*Hugs "+nick+"*");
+	} 
+	else if(simplified[0] === "!ep") {
+		var param = simplified[1];
+		mylog(param);
+		if(param != null) {
+			var epis = param.match(/^s([0-9]+)e([0-9]+)$/i);
+			if(epis){
+			var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1];
+			sendPM(target, nick+": Watch the episode you requested here: "+link);
+			} else {
+				sendPM(target, irc.colors.wrap("dark_red",nick+": Correct usage !ep s[season number]e[episode number]"));
+			}
+		} else {
+			sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
+		}
+	}
+	else if(simplified[0] === "!nextep") {
+		var counter = 0;
+		var now = Date.now();
+		do {
+			var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
+		} while (timeLeft === 0 && counter < 26);
+		if (timeLeft === 0) {
+			sendPM(target, irc.colors.wrap("dark_red","Season 4 is over :("));
+		} else {
+			sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
+		}
+	}
+	else if(simplified[0] === "!np") {
+		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://djazz.se:8000/mpd");} else { sendPM(target, d)}});
+	}
+	if(findUrls(message).length > 0) {
+		var link = findUrls(message)[0];
+		if(link.indexOf("youtu.be") != -1) {
+		var det = link.substring(link.indexOf('.be/')+4);
+			if(det) {
+				youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
+			}
+		} else if(link.indexOf("youtube.com") != -1) {
+		var det = link.substring(link.indexOf('?v=')+3);
+			if(det) {
+			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
+			}
+		}
+	}
+}
+
+var bot = new irc.Client(SERVER, NICK, {
+	channels: [CHANNEL],
+	password: IDENT,
+	realName: REALNAME,
+	port: PORT,
+	stripColors: true
+});
+var lasttopic = "";
+var lasttopicnick = "";
+
+bot.on('error', function (message) {
+	info('ERROR: %s: %s', message.command, message.args.join(' '));
+});
+bot.on('topic', function (channel, topic, nick) {
+	lasttopic = topic;
+	lasttopicnick = nick;
+	logTopic(channel, topic, nick);
+});
+bot.on('message'+CHANNEL, function (from, message) {
+	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+	var isMentioned = simplified.indexOf(NICK) !== -1;
+	logChat(from, message, isMentioned);
+	handleMessage(from, message, simplified, isMentioned, false);
+});
+bot.on('join'+CHANNEL, function (nick) {
+	if (nick === NICK) {
+		info("You joined channel "+CHANNEL.bold);
+		rl.setPrompt(util.format("> ".bold.magenta), 2);
+		rl.prompt(true);
+	} else {
+		mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, CHANNEL.bold);
+	}
+});
+bot.on('part'+CHANNEL, function (nick) {
+	if (nick !== NICK) {
+		mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, CHANNEL.bold);
+	}
+});
+bot.on('pm', function (nick, message) {
+	logPM(nick, message);
+	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+	var isMentioned = simplified.indexOf(NICK) !== -1;
+	handleMessage(nick, message, simplified, isMentioned, true);
+});
+bot.on('notice', function (nick, to, text) {
+	//mylog(nick, to, text);
+});
+bot.on('raw', function (message) {
+	if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1].indexOf("\u0001ACTION ") === 0) {
+		var action = message.args[1].substr(8);
+		action = action.substring(0, action.length-1);
+		mylog("* %s".bold+" %s", message.nick, action);
+	}
+});
+
+var rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout
+});
+rl.setPrompt("");
+
+rl.on('line', function (line) {
+	
+	if (line === '') {
+		return;
+	}
+	if (line.indexOf('/quit') === 0) {
+		info("Quitting...");
+		rl.setPrompt("");
+		bot.disconnect("Quitting..", function () {
+			process.exit(0);
+		});
+		return;
+	} else if (line.indexOf('/msg ') === 0) {
+		var split = line.split(" ");
+
+		var nick = split[1];
+		var msg = split.slice(2).join(" ");
+		sendPM(nick, msg);
+	} else if (line.indexOf('/night') === 0) {
+		sendPM(CHANNEL, "*yawn* Squeebot is going to sleep. Goodnight");
+	} else if (line.indexOf('/me ') === 0) {
+		var msg = line.substr(4);
+		bot.action(CHANNEL, msg);
+	} else if (line === '/topic') {
+		logTopic(CHANNEL, lasttopic, lasttopicnick);
+	} else if (line.indexOf("/") === 0) {
+		info(("Unknown command "+line.substr(1).bold).red);
+	} else {
+		sendChat(line);
+	}
+	rl.prompt(true);
+});
+
+info('Connecting...');
+
+function mylog() {
+	// rl.pause();
+	rl.output.write('\x1b[2K\r');
+	console.log.apply(console, Array.prototype.slice.call(arguments));
+	// rl.resume();
+	rl._refreshLine();
+}
+
+function info() {
+	arguments[0] = "  -- ".magenta+arguments[0];
+	mylog(util.format.apply(null, arguments));
+}
+
+function sendChat() {
+	var message = util.format.apply(null, arguments);
+	logChat(NICK, message);
+	bot.say(CHANNEL, message);
+}
+function sendPM(target) {
+	if (target === CHANNEL) {
+		sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
+		return;
+	}
+	var message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
+	logPM(NICK+" -> "+target, message);
+	bot.say(target, message);
+}
+function logChat(nick, message, isMentioned) {
+	if (isMentioned) {
+		nick = nick.yellow;
+	}
+	mylog('%s: %s', nick.bold, message);
+}
+function logPM(target, message) {
+	mylog('%s: %s', target.bold.blue, message);
+}
+function logTopic(channel, topic, nick) {
+	info('Topic for %s is "%s", set by %s', channel.bold, topic.yellow, nick.bold.cyan);
+}
+function zf(v) {
+	if (v > 9) {
+		return ""+v;
+	} else {
+		return "0"+v;
+	}
+}
+function readableTime(timems, ignoreMs) {
+	var time = timems|0;
+	var ms = ignoreMs?'':"."+zf((timems*100)%100|0);
+	if (time < 60) return zf(time)+ms+"s";
+	else if (time < 3600) return zf(time / 60|0)+"m "+zf(time % 60)+ms+"s";
+	else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
+	else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
+} 
