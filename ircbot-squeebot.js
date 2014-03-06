@@ -11,7 +11,7 @@ var util = require('util');
 var readline = require('readline');
 var youtube = require('youtube-feeds')
 var request = require('request')
-var loginDetails = require('./login-details.json');
+var loginDetails = require(__dirname+"/login-details.json");
 
 // Config
 var SERVER = 'irc.canternet.org';	// The server we want to connect to
