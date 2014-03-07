@@ -5,9 +5,10 @@ irc
 colors
 request
 
-You must make a file called "login_details.json" that has your username and password
+You must make a file called "login-details.json" that has your username and password
 Template:
 {
 	"username":"MyIRCBot",
 	"password":"*****"
 }
+You can add and remove some commands if you wish.

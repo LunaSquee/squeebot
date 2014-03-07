@@ -2,7 +2,7 @@
 'use strict';
 // IRC bot by djazz
 // djazz is best <3 - LunaSquee
-// A bot thingy I love :3
+
 // Modules
 //var http = require('http');
 var irc = require('irc');
@@ -81,6 +81,9 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 	}
 	else if(simplified[0] === "!episodes") {
 		sendPM(target, nick+": Watch MLP Episodes: http://mlp-episodes.tk/");
+	} 
+	else if(simplified[0] === "!yay") {
+		sendPM(target, nick+": http://flutteryay.com");
 	} 
 	else if(simplified[0] === "!stream") {
 		if(simplified[1] === "season4") {
