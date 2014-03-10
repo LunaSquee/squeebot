@@ -69,9 +69,9 @@ function findUrls(text) {
 
     while((matchArray = regexToken.exec(source))!== null) {
         var token = matchArray[0];
-		if(token.indexOf("youtube.com/watch?v=") != -1) {
+		if(token.indexOf("youtube.com/watch?v=") !== -1) {
 			urlArray.push(token);
-		} else if(token.indexOf("youtu.be/") != -1) {
+		} else if(token.indexOf("youtu.be/") !== -1) {
 			urlArray.push(token);
 		}
     }
@@ -81,18 +81,17 @@ function findUrls(text) {
 function handleMessage(nick, message, simplified, isMentioned, isPM) {
 	var target = isPM ? nick : CHANNEL;
 
-	if (simplified[0] === "!testc") {
-		sendPM(target, "Test success!");
-	} else if (isMentioned) {
-		sendPM(target, nick+": Hello! Do !commc for my commands :3");
-	} else if (simplified[0] === "!commc") {
+	if (isMentioned) {
+		sendPM(target, nick+": Hello there!");
+	} 
+	else if (simplified[0] === "!commc") {
 		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commc - All commands");
-		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [season4/djazz/music]- Link to livestream, !np - Currently playing song, !music - The music stream by djazz, !viewers - Number of viewers on the livestream");
-	} else if (simplified[0] === "!rules") {
+		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [season4/djazz/music]- Link to a livestream, !np - Currently playing song, !music - The music stream by djazz, !viewers - Number of viewers on the livestream");
+	} 
+	else if (simplified[0] === "!rules") {
 		sendPM(target, nick+": [1] - No spam \n [2] - No spoilers \n [3] - No bots(Squeebot is the only bot for now!) \n [4] - No bad language \n [5] - No insulting");
-	}
-	
-	if(simplified[0] === "!infoc") {
+	} 
+	else if(simplified[0] === "!infoc") {
 		sendPM(target, nick+": IRC channel created by LunaSquee and Dangershy(djazz).");
 	}
 	else if(simplified[0] === "!episodes") {
@@ -114,7 +113,7 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		}
 	} 
 	else if(simplified[0] === "!music") {
-		sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd | Say !np to see which song is playing!");
+		sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd | Say !np to see what song is playing!");
 	} 
 	else if(simplified[0] === "!hug") {
 		sendPM(target, "*Hugs "+nick+"*");
@@ -154,12 +153,12 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 	}
 	if(findUrls(message).length > 0) {
 		var link = findUrls(message)[0];
-		if(link.indexOf("youtu.be") != -1) {
+		if(link.indexOf("youtu.be") !== -1) {
 		var det = link.substring(link.indexOf('.be/')+4);
 			if(det) {
 				youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
 			}
-		} else if(link.indexOf("youtube.com") != -1) {
+		} else if(link.indexOf("youtube.com") !== -1) {
 		var det = link.substring(link.indexOf('?v=')+3);
 			if(det) {
 			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
@@ -243,7 +242,6 @@ rl.on('line', function (line) {
 		return;
 	} else if (line.indexOf('/msg ') === 0) {
 		var split = line.split(" ");
-
 		var nick = split[1];
 		var msg = split.slice(2).join(" ");
 		sendPM(nick, msg);
