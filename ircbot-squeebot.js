@@ -21,7 +21,7 @@ var IDENT = loginDetails.password;	// Password of the bot. Set to null to not us
 var REALNAME = 'LunaSquee\'s bot';	// Real name of the bot
 var CHANNEL = '#BronyTalk';			// The default channel for the bot 
 
-var airDate = Date.UTC(2013, 11-1, 23, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
+var airDate = Date.UTC(2013, 11-1, 23, 14, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
 function getCurrentSongData(callback) {
