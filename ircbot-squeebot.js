@@ -159,7 +159,8 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 				youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
 			}
 		} else if(link.indexOf("youtube.com") !== -1) {
-		var det = link.substring(link.indexOf('?v=')+3);
+		var det = link.match("[\\?&]v=([^&#]*)");
+		det = det[1];
 			if(det) {
 			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
 			}
