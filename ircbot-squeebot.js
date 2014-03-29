@@ -44,6 +44,17 @@ function getCurrentSongData(callback) {
 	});
 }
 
+function dailymotion(id, callback) {
+	request({
+		url: "https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname",
+		json: true
+	}, function (error, response, body) {
+		if (!error && response.statusCode === 200) {
+			callback(body);
+		} 
+	});
+}
+
 function livestreamViewerCount(callback) {
 	request({
 		url: "http://djazz.se/live/info.php",
@@ -72,6 +83,8 @@ function findUrls(text) {
 		if(token.indexOf("youtube.com/watch?v=") !== -1) {
 			urlArray.push(token);
 		} else if(token.indexOf("youtu.be/") !== -1) {
+			urlArray.push(token);
+		} else if(token.indexOf("dailymotion.com/video/") !== -1) {
 			urlArray.push(token);
 		}
     }
@@ -163,6 +176,13 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		det = det[1];
 			if(det) {
 			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
+			}
+		} else if(link.indexOf("dailymotion.com/video/") !== -1) {
+			var det = link.match("/video/([^&#]*)")[1];
+			if(det) {
+				dailymotion(det, (function(data) {
+					sendPM(target, "Dailymotion video \""+data.title+"\" Uploaded by \""+data["owner.screenname"]+"\"");
+				}))
 			}
 		}
 	}
