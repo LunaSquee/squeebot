@@ -152,8 +152,8 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		do {
 			var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
 		} while (timeLeft === 0 && counter < 26);
-		if (timeLeft === 0) {
-			sendPM(target, irc.colors.wrap("dark_red","Season 4 is over :("));
+		if (counter === 26) {
+			sendPM(target, "Season 4 is over :(");
 		} else {
 			sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
 		}
