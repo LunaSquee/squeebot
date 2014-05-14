@@ -31,7 +31,7 @@ function getCurrentSongData(callback) {
 	}, function (error, response, body) {
 		if (!error && response.statusCode === 200) {
 			if(body["/mpd"] != null) {
-				var theTitle = new Buffer(body["/mpd"].title, "binary").toString("utf8");
+				var theTitle = new Buffer(body["/mpd"].title, "utf8").toString("utf8");
 				var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
 				if(splitUp.length===2) {
 					theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
@@ -102,10 +102,10 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [season4/djazz/music]- Link to a livestream, !np - Currently playing song, !music - The music stream by djazz, !viewers - Number of viewers on the livestream");
 	} 
 	else if (simplified[0] === "!rules") {
-		sendPM(target, nick+": [1] - No spam \n [2] - No spoilers \n [3] - No bots(Squeebot is the only bot for now!) \n [4] - No bad language \n [5] - No insulting");
+		sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
 	} 
 	else if(simplified[0] === "!infoc") {
-		sendPM(target, nick+": IRC channel created by LunaSquee and Dangershy(djazz).");
+		sendPM(target, nick+": IRC channel created by LunaSquee and djazz.");
 	}
 	else if(simplified[0] === "!episodes") {
 		sendPM(target, nick+": Watch MLP Episodes: http://mlp-episodes.tk/");
