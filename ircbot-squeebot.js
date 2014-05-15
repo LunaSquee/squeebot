@@ -99,7 +99,7 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 	} 
 	else if (simplified[0] === "!commc") {
 		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commc - All commands");
-		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [season4/djazz/music]- Link to a livestream, !np - Currently playing song, !music - The music stream by djazz, !viewers - Number of viewers on the livestream");
+		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [djazz/music]- Link to a livestream, !np - Currently playing song, !radio - Parasprite Radio, !viewers - Number of viewers on the livestream");
 	} 
 	else if (simplified[0] === "!rules") {
 		sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
@@ -114,19 +114,16 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		sendPM(target, nick+": http://flutteryay.com");
 	} 
 	else if(simplified[0] === "!stream") {
-		if(simplified[1] === "season4") {
-			sendPM(target, nick+": Season 4 live: http://mlp-episodes.tk/livestream.html");
-		} else if(simplified[1] === "djazz") {
+		if(simplified[1] === "djazz") {
 			livestreamViewerCount((function(r) { sendPM(target, nick+": Watch djazz's livestream: http://djazz.se/live/ | "+r); }));
 		} else if(simplified[1] === "music") {
-			sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd");
-			getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e);} else { sendPM(target, d)}});
+			getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, nick+": Listen to the Parasprite Radio: http://radio.djazz.se/ | Now playing: "+d);} else { sendPM(target, d)}});
 		} else {
-			sendPM(target, nick+": Season 4 live: http://mlp-episodes.tk/livestream.html or Watch djazz's livestream: http://djazz.se/live/");
+			sendPM(target, nick+": Watch djazz's livestream: http://djazz.se/live/");
 		}
 	} 
-	else if(simplified[0] === "!music") {
-		sendPM(target, nick+": Listen to music here: http://djazz.se:8000/mpd | Say !np to see what song is playing!");
+	else if(simplified[0] === "!radio") {
+		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, nick+": Listen to the Parasprite Radio: http://radio.djazz.se/ | Now playing: "+d);} else { sendPM(target, d)}});
 	} 
 	else if(simplified[0] === "!hug") {
 		sendPM(target, "*Hugs "+nick+"*");
@@ -159,7 +156,7 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 		}
 	}
 	else if(simplified[0] === "!np") {
-		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://djazz.se:8000/mpd");} else { sendPM(target, d)}});
+		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/");} else { sendPM(target, d)}});
 	}
 	else if(simplified[0] === "!viewers") {
 		livestreamViewerCount((function(r) { sendPM(target, r+" | Livestream: http://djazz.se/live/");}));
