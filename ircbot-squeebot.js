@@ -38,7 +38,7 @@ function getCurrentSongData(callback) {
 				}
 				callback(theTitle, body["/mpd"].listeners, true);
 			} else {
-				callback("The music stream is offline", "", false);
+				callback("Parasprite Radio is offline!", "", false);
 			}
 		} 
 	});
@@ -65,7 +65,7 @@ function livestreamViewerCount(callback) {
 			if(view!=-1) {
 				callback("Viewers: "+view);
 			} else {
-				callback("The stream is offline!");
+				callback("The livestream is offline.");
 			}
 		} 
 	});
@@ -97,21 +97,24 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 	if (isMentioned) {
 		sendPM(target, nick+": Hello there!");
 	} 
-	else if (simplified[0] === "!commc") {
-		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commc - All commands");
+	else if (simplified[0] === "!commands") {
+		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commands - All commands");
 		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [djazz/music]- Link to a livestream, !np - Currently playing song, !radio - Parasprite Radio, !viewers - Number of viewers on the livestream");
 	} 
 	else if (simplified[0] === "!rules") {
 		sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
 	} 
 	else if(simplified[0] === "!infoc") {
-		sendPM(target, nick+": IRC channel created by LunaSquee and djazz.");
+		sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
 	}
 	else if(simplified[0] === "!episodes") {
-		sendPM(target, nick+": Watch MLP Episodes: http://mlp-episodes.tk/");
+		sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
 	} 
 	else if(simplified[0] === "!yay") {
 		sendPM(target, nick+": http://flutteryay.com");
+	} 
+	else if(simplified[0] === "!squee") {
+		sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 	} 
 	else if(simplified[0] === "!stream") {
 		if(simplified[1] === "djazz") {
@@ -169,8 +172,7 @@ function handleMessage(nick, message, simplified, isMentioned, isPM) {
 				youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
 			}
 		} else if(link.indexOf("youtube.com") !== -1) {
-		var det = link.match("[\\?&]v=([^&#]*)");
-		det = det[1];
+		var det = link.match("[\\?&]v=([^&#]*)")[1];
 			if(det) {
 			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
 			}
