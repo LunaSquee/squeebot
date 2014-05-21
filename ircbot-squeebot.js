@@ -26,21 +26,23 @@ var week = 7*24*60*60*1000;
 
 function getCurrentSongData(callback) {
 	request({
-		url: "http://djazz.se:8000/info_json.xsl",
+		url: "http://radio.djazz.se/icecast.php",
 		json: true
 	}, function (error, response, body) {
 		if (!error && response.statusCode === 200) {
-			if(body["/mpd"] != null) {
-				var theTitle = new Buffer(body["/mpd"].title, "utf8").toString("utf8");
+			if(body.title != null) {
+				var theTitle = new Buffer(body.title, "utf8").toString("utf8");
 				var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
 				if(splitUp.length===2) {
 					theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
 				}
-				callback(theTitle, body["/mpd"].listeners, true);
+				callback(theTitle, body.listeners, true);
 			} else {
 				callback("Parasprite Radio is offline!", "", false);
 			}
-		} 
+		} else {
+			callback("Parasprite Radio is offline!", "", false);
+		}
 	});
 }
 
@@ -91,8 +93,8 @@ function findUrls(text) {
     return urlArray;
 }
 
-function handleMessage(nick, message, simplified, isMentioned, isPM) {
-	var target = isPM ? nick : CHANNEL;
+function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
+	var target = isPM ? nick : chan;
 
 	if (isMentioned) {
 		sendPM(target, nick+": Hello there!");
@@ -205,24 +207,26 @@ bot.on('topic', function (channel, topic, nick) {
 	lasttopicnick = nick;
 	logTopic(channel, topic, nick);
 });
-bot.on('message'+CHANNEL, function (from, message) {
+bot.on('message', function (from, to, message) {
 	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
 	var isMentioned = simplified.indexOf(NICK) !== -1;
-	logChat(from, message, isMentioned);
-	handleMessage(from, message, simplified, isMentioned, false);
+	logChat(from, to, message, isMentioned);
+	handleMessage(from, to, message, simplified, isMentioned, false);
 });
-bot.on('join'+CHANNEL, function (nick) {
+bot.on('join', function (channel, nick) {
 	if (nick === NICK) {
-		info("You joined channel "+CHANNEL.bold);
+		info("You joined channel "+channel.bold);
 		rl.setPrompt(util.format("> ".bold.magenta), 2);
 		rl.prompt(true);
 	} else {
-		mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, CHANNEL.bold);
+		mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
 	}
 });
-bot.on('part'+CHANNEL, function (nick) {
+bot.on('part', function (channel, nick, reason) {
 	if (nick !== NICK) {
-		mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, CHANNEL.bold);
+		mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
+	} else {
+		mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
 	}
 });
 bot.on('pm', function (nick, message) {
@@ -265,8 +269,12 @@ rl.on('line', function (line) {
 		var nick = split[1];
 		var msg = split.slice(2).join(" ");
 		sendPM(nick, msg);
-	} else if (line.indexOf('/night') === 0) {
-		sendPM(CHANNEL, "*yawn* Squeebot is going to sleep. Goodnight");
+	} else if (line.indexOf('/join ') === 0) {
+		var chan = line.substr(6);
+		bot.join(chan);
+	} else if (line.indexOf('/part ') === 0) {
+		var chan = line.substr(6);
+		bot.part(chan, "Squeebot goes bye bye from this channel.");
 	} else if (line.indexOf('/me ') === 0) {
 		var msg = line.substr(4);
 		bot.action(CHANNEL, msg);
@@ -297,7 +305,7 @@ function info() {
 
 function sendChat() {
 	var message = util.format.apply(null, arguments);
-	logChat(NICK, message);
+	logChat(NICK, CHANNEL, message);
 	bot.say(CHANNEL, message);
 }
 function sendPM(target) {
@@ -309,11 +317,11 @@ function sendPM(target) {
 	logPM(NICK+" -> "+target, message);
 	bot.say(target, message);
 }
-function logChat(nick, message, isMentioned) {
+function logChat(nick, chan, message, isMentioned) {
 	if (isMentioned) {
 		nick = nick.yellow;
 	}
-	mylog('%s: %s', nick.bold, message);
+	mylog('[%s] %s: %s', chan, nick.bold, message);
 }
 function logPM(target, message) {
 	mylog('%s: %s', target.bold.blue, message);
