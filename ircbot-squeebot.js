@@ -233,7 +233,7 @@ bot.on('pm', function (nick, message) {
 	logPM(nick, message);
 	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
 	var isMentioned = simplified.indexOf(NICK) !== -1;
-	handleMessage(nick, message, simplified, isMentioned, true);
+	handleMessage(nick, "", message, simplified, isMentioned, true);
 });
 bot.on('notice', function (nick, to, text) {
 	//mylog(nick, to, text);
