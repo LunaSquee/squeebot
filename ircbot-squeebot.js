@@ -229,6 +229,9 @@ bot.on('part', function (channel, nick, reason) {
 		mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
 	}
 });
+bot.on('quit', function (nick, reason, channels) {
+	mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
+});
 bot.on('pm', function (nick, message) {
 	logPM(nick, message);
 	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
