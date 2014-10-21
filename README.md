@@ -9,10 +9,14 @@ This is a [node.js](http://nodejs.org/) powered IRC bot made by LunaSquee and dj
 4. Run the bot `node irc-squeebot`
 
 ### Requirements
-You must make a file called "login-details.json" that has your username and password
+You must make a file called "login-details.json" that has your bot's username and password.
+
 Template:
+```
 {
-	"username":"Squeebot",
-	"password":"abc123"
+    "username":"Squeebot",
+    "password":"abc123"
 }
+```
+
 **Leave password as null if no password.**

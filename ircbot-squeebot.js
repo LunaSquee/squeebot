@@ -59,14 +59,26 @@ function getGameInfo(game, ip, callback, additional) {
                 switch(game) {
                     case "tf2":
                         if(additional) {
-                            callback(null, (typeof(additional) === "object" ? state[additional[0]][additional[1]] : additional));
+                            callback(null, "[Team Fortress 2 server] " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
                         } else {
                             callback(null, "[Team Fortress 2 server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.maxplayers);
                         }
                         break;
                     case "minecraft":
-                        callback(null, "[Minecraft server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
-                        break;
+                        if(additional!=null && additional === true) {
+                            if(state.players.length > 0) {
+                                var players = [];
+                                state.players.forEach(function(t) {
+                                    players.push(t.name);
+                                });
+                                callback(null, "[Minecraft server] Players: "+players.join(", "));
+                            } else {
+                                callback(null, "[Minecraft server] Players: None");
+                            }
+                        } else {
+                            callback(null, "[Minecraft server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
+                            break;
+                        }
                 };
             }
         }
@@ -161,21 +173,22 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
 		sendPM(target, "*Hugs "+nick+"*");
 	} 
     else if(simplified[0] === "!minecraft" || simplified[0] === "!mc") {
+        var reqplayers = false;
+        if(simplified[1] === "players") {
+            reqplayers = true;
+        }
 		getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
             if(err) { 
                 sendPM(target, err); 
                 return;
             }
             sendPM(target, msg); 
-        });
+        }, reqplayers);
 	} 
     else if(simplified[0] === "!tf2" || simplified[0] === "!teamfortress") {
         var additional = null;
-        if(simplified[1]) {
-            switch(simplified[1]) {
-                case "tags":
-                    additional = ["raw", "tags"];
-            }
+        if(simplified[1] === "tags") {
+            additional = ["raw", "tags"];
         }
 		getGameInfo("tf2", "tf2.djazz.se", function(err, msg) {
             if(err) { 
