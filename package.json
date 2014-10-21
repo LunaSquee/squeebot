@@ -1,0 +1,23 @@
+{
+	"name":"Squeebot",
+	"description":"Node.js powered IRC bot",
+	"author":"Evert Prants",
+	"version":"0.1.5",
+    "repository": {
+        "type": "git",
+        "url": "git://github.com/LunaSquee/squeebot.git"
+    },
+	"dependencies":{
+		"irc":"0.3.6",
+		"request":"2.34.0",
+		"colors":"0.6.2",
+		"youtube-feeds":"2.2.1",
+		"gamedig":"0.2.8"
+	},
+	"engines":[
+		"node >= 0.8.0"
+	],
+    "bin": {
+        "squeebot": "./ircbot-squeebot.js"  
+    }
+}

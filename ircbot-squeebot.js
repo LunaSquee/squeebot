@@ -11,6 +11,7 @@ var util = require('util');
 var readline = require('readline');
 var youtube = require('youtube-feeds')
 var request = require('request')
+var gamedig = require('gamedig')
 var loginDetails = require(__dirname+"/login-details.json");
 
 // Config
@@ -44,6 +45,32 @@ function getCurrentSongData(callback) {
 			callback("Parasprite Radio is offline!", "", false);
 		}
 	});
+}
+
+function getGameInfo(game, ip, callback, additional) {
+    Gamedig.query(
+    {
+        type: game,
+        host: ip
+    },
+        function(state) {
+            if(state.error) callback("Server is offline!", null);
+            else {
+                switch(game) {
+                    case "tf2":
+                        if(additional) {
+                            callback(null, (typeof(additional) === "object" ? state[additional[0]][additional[1]] : additional));
+                        } else {
+                            callback(null, "[Team Fortress 2 server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.maxplayers);
+                        }
+                        break;
+                    case "minecraft":
+                        callback(null, "[Minecraft server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
+                        break;
+                };
+            }
+        }
+    );
 }
 
 function dailymotion(id, callback) {
@@ -133,6 +160,31 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
 	else if(simplified[0] === "!hug") {
 		sendPM(target, "*Hugs "+nick+"*");
 	} 
+    else if(simplified[0] === "!minecraft" || simplified[0] === "!mc") {
+		getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
+            if(err) { 
+                sendPM(target, err); 
+                return;
+            }
+            sendPM(target, msg); 
+        });
+	} 
+    else if(simplified[0] === "!tf2" || simplified[0] === "!teamfortress") {
+        var additional = null;
+        if(simplified[1]) {
+            switch(simplified[1]) {
+                case "tags":
+                    additional = ["raw", "tags"];
+            }
+        }
+		getGameInfo("tf2", "tf2.djazz.se", function(err, msg) {
+            if(err) { 
+                sendPM(target, err); 
+                return;
+            }
+            sendPM(target, msg); 
+        }, additional);
+	} 
 	else if(simplified[0] === "!ep") {
 		var param = simplified[1];
 		mylog(param);
@@ -194,6 +246,8 @@ var bot = new irc.Client(SERVER, NICK, {
 	password: IDENT,
 	realName: REALNAME,
 	port: PORT,
+	//secure: true,
+	//certExpired: true,
 	stripColors: true
 });
 var lasttopic = "";
