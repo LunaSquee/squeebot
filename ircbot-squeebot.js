@@ -77,8 +77,8 @@ function getGameInfo(game, ip, callback, additional) {
                             }
                         } else {
                             callback(null, "[Minecraft server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
-                            break;
                         }
+                        break;
                 };
             }
         }
