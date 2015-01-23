@@ -1,52 +1,201 @@
 #!/usr/bin/env node
 'use strict';
-// IRC bot by djazz
-// djazz is best <3 - LunaSquee
+// IRC bot by LunaSquee (Originally djazz, best poni :3)
 
 // Modules
-//var http = require('http');
+var http = require('http');
 var irc = require('irc');
 var colors = require('colors');
 var util = require('util');
 var readline = require('readline');
-var youtube = require('youtube-feeds')
-var request = require('request')
-var gamedig = require('gamedig')
+var youtube = require('youtube-feeds');
+var gamedig = require('gamedig');
 var loginDetails = require(__dirname+"/login-details.json");
 
 // Config
-var SERVER = 'irc.canternet.org';	// The server we want to connect to
-var PORT = 6667;			// The connection port which is usually 6667
-var NICK = loginDetails.username;	// The bot's nickname 
-var IDENT = loginDetails.password;	// Password of the bot. Set to null to not use password login.
-var REALNAME = 'LunaSquee\'s bot';	// Real name of the bot
-var CHANNEL = '#BronyTalk';			// The default channel for the bot 
+var SERVER = 'irc.canternet.org';        // The server we want to connect to
+var PORT = 6667;                    // The connection port which is usually 6667
+var NICK = loginDetails.username;   // The bot's nickname 
+var IDENT = loginDetails.password;  // Password of the bot. Set to null to not use password login.
+var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
+var CHANNEL = '#BronyTalk';	        // The default channel for the bot 
 
+// Episode countdown
 var airDate = Date.UTC(2013, 11-1, 23, 14, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
-function getCurrentSongData(callback) {
-	request({
-		url: "http://radio.djazz.se/icecast.php",
-		json: true
-	}, function (error, response, body) {
-		if (!error && response.statusCode === 200) {
-			if(body.title != null) {
-				var theTitle = new Buffer(body.title, "utf8").toString("utf8");
+// This is the list of all your commands.
+// "!command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
+var commands = {
+    "!commands":{"action":(function(simplified, nick, chan, message, target) {
+        listCommands(target, nick)
+    }), "description":"All Commands"},
+    
+    "!infoc":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
+    }), "description":"Channel Information"},
+    
+    "!rules":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
+    }), "description":"Channel Rules"},
+    
+    "!np":{"action":(function(simplified, nick, chan, message, target) {
+        getCurrentSong(function(d, e, i) { 
+            if(i) { 
+                sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
+            } else { 
+                sendPM(target, d)
+            }
+        })
+    }), "description":"Currently playing song"},
+    
+    "!radio":{"action":(function(simplified, nick, chan, message, target) {
+        getCurrentSong(function(d, e, i) { 
+            if(i) { 
+                sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
+            } else { 
+                sendPM(target, d)
+            }
+        })
+    }), "description":"Parasprite Radio"},
+    
+    "!yay":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, nick+": http://flutteryay.com")
+    })},
+    
+    "!squee":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q")
+    })},
+    
+    "!hug":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, "*Hugs "+nick+"*");
+    })},
+    
+    "!viewers":{"action":(function(simplified, nick, chan, message, target) {
+        livestreamViewerCount((function(r) { 
+            sendPM(target, r+" | Livestream: http://djazz.se/live/")
+        }))
+    }),"description":"Number of people watching livestream"},
+    
+    "!nextep":{"action":(function(simplified, nick, chan, message, target) {
+        var counter = 0;
+        var now = Date.now();
+        do {
+            var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
+        } while (timeLeft === 0 && counter < 26);
+        if (counter === 26) {
+            sendPM(target, "Season 4 is over :(");
+        } else {
+            sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
+        }
+    }),"description":"Number of people watching the livestream"},
+    
+    "!episodes":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
+    }),"description":"List of pony episodes"},
+    
+    "!minecraft":{"action":(function(simplified, nick, chan, message, target) {
+        var reqplayers = false;
+        
+        if(simplified[1] === "players") {
+            reqplayers = true;
+        }
+        
+        getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
+            if(err) { 
+                sendPM(target, err); 
+                return;
+            }
+            sendPM(target, msg); 
+        }, reqplayers);
+    }),"description":"Minecraft Server"},
+    
+    "!mc":{"action":(function(simplified, nick, chan, message, target) {
+        var reqplayers = false;
+        
+        if(simplified[1] === "players") {
+            reqplayers = true;
+        }
+        
+        getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
+            if(err) { 
+                sendPM(target, err); 
+                return;
+            }
+            sendPM(target, msg); 
+        }, reqplayers);
+    })},
+    
+    "!episode":{"action":(function(simplified, nick, chan, message, target) {
+        var param = simplified[1]; 
+        if(param != null) { 
+            var epis = param.match(/^s([0-9]+)e([0-9]+)$/i); 
+            if(epis){ 
+                var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1]; 
+                sendPM(target, nick+": Watch the episode you requested here: "+link); 
+            } else { 
+                sendPM(target, irc.colors.wrap("dark_red",nick+": Correct usage !ep s[season number]e[episode number]"));
+            }
+        } else {
+            sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
+        }
+    }),"description":"Open a pony episode"}
+};
+
+// List all commands that have a description set
+function listCommands(target, nick) {
+    sendPM(target, nick+": --- SQUEEBOT COMMANDS ---");
+    var comms = [];
+    for(var command in commands) {
+        var obj = commands[command];
+        if("description" in obj) {
+            comms.push(command+" - "+obj.description);
+        }
+    }
+    sendPM(target, nick+": "+comms.join(", "));
+    sendPM(target, nick+": --- END OF !commands ---");
+}
+
+// Grab JSON from an url 
+function JSONGrabber(url, callback) {
+    http.get(url, function(res){
+        var data = '';
+
+        res.on('data', function (chunk){
+            data += chunk;
+        });
+
+        res.on('end',function(){
+            var obj = JSON.parse(data);
+            callback(true, obj);
+        })
+
+    }).on('error', function(e) {
+        callback(false, e.message);
+    });
+}
+
+// Get current Parasprite Radio song
+function getCurrentSong(callback) {
+    JSONGrabber("http://radio.djazz.se/icecast.php", function(success, content) {
+        if(success) {
+            if(content.title != null) {
+				var theTitle = new Buffer(content.title, "utf8").toString("utf8");
 				var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
 				if(splitUp.length===2) {
 					theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
 				}
-				callback(theTitle, body.listeners, true);
+				callback(theTitle, content.listeners, true);
 			} else {
 				callback("Parasprite Radio is offline!", "", false);
 			}
-		} else {
-			callback("Parasprite Radio is offline!", "", false);
-		}
-	});
+        } else {
+            callback("Parasprite Radio is offline!", "", false);
+        }
+    });
 }
 
+// Gameserver info (This function makes me puke)
 function getGameInfo(game, ip, callback, additional) {
     Gamedig.query(
     {
@@ -85,33 +234,32 @@ function getGameInfo(game, ip, callback, additional) {
     );
 }
 
+// Dailymotion video puller
 function dailymotion(id, callback) {
-	request({
-		url: "https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname",
-		json: true
-	}, function (error, response, body) {
-		if (!error && response.statusCode === 200) {
-			callback(body);
-		} 
-	});
+    JSONGrabber("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname", function(success, content) {
+        if(success) {
+            callback(content);
+        }
+    });
 }
 
+// Livestream viewers
 function livestreamViewerCount(callback) {
-	request({
-		url: "http://djazz.se/live/info.php",
-		json: true
-	}, function (error, response, body) {
-		if (!error && response.statusCode === 200) {
-			var view = body.viewcount;
+    JSONGrabber("http://djazz.se/live/info.php", function(success, content) {
+        if(success) {
+            var view = content.viewcount;
 			if(view!=-1) {
 				callback("Viewers: "+view);
 			} else {
 				callback("The livestream is offline.");
 			}
-		} 
-	});
+        } else {
+            callback("The livestream is offline.");
+        }
+    });
 }
 
+// Finds urls in string
 function findUrls(text) {
     var source = (text || '').toString();
     var urlArray = [];
@@ -132,127 +280,41 @@ function findUrls(text) {
     return urlArray;
 }
 
+// Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
 	var target = isPM ? nick : chan;
-
-	if (isMentioned) {
-		sendPM(target, nick+": Hello there!");
-	} 
-	else if (simplified[0] === "!commands") {
-		sendPM(target, nick+": !infoc - Information, !rules - Channel rules, !commands - All commands");
-		sendPM(target, nick+": !nextep - Time until next episode, !ep s[season]e[episode] - Open an episode, !episodes - A website for all episodes, !stream [djazz/music]- Link to a livestream, !np - Currently playing song, !radio - Parasprite Radio, !viewers - Number of viewers on the livestream");
-	} 
-	else if (simplified[0] === "!rules") {
-		sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
-	} 
-	else if(simplified[0] === "!infoc") {
-		sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
-	}
-	else if(simplified[0] === "!episodes") {
-		sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
-	} 
-	else if(simplified[0] === "!yay") {
-		sendPM(target, nick+": http://flutteryay.com");
-	} 
-	else if(simplified[0] === "!squee") {
-		sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
-	} 
-	else if(simplified[0] === "!stream") {
-		if(simplified[1] === "djazz") {
-			livestreamViewerCount((function(r) { sendPM(target, nick+": Watch djazz's livestream: http://djazz.se/live/ | "+r); }));
-		} else if(simplified[1] === "music") {
-			getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, nick+": Listen to the Parasprite Radio: http://radio.djazz.se/ | Now playing: "+d);} else { sendPM(target, d)}});
-		} else {
-			sendPM(target, nick+": Watch djazz's livestream: http://djazz.se/live/");
-		}
-	} 
-	else if(simplified[0] === "!radio") {
-		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, nick+": Listen to the Parasprite Radio: http://radio.djazz.se/ | Now playing: "+d);} else { sendPM(target, d)}});
-	} 
-	else if(simplified[0] === "!hug") {
-		sendPM(target, "*Hugs "+nick+"*");
-	} 
-    else if(simplified[0] === "!minecraft" || simplified[0] === "!mc") {
-        var reqplayers = false;
-        if(simplified[1] === "players") {
-            reqplayers = true;
-        }
-		getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
-            if(err) { 
-                sendPM(target, err); 
-                return;
+    if(simplified[0].toLowerCase() in commands) {
+        var command = commands[simplified[0].toLowerCase()];
+        if("action" in command) 
+            command.action(simplified, nick, chan, message, target, isMentioned, isPM);
+    }else if(findUrls(message).length > 0) {
+        var link = findUrls(message)[0];
+        if(link.indexOf("youtu.be") !== -1) {
+        var det = link.substring(link.indexOf('.be/')+4);
+            if(det) {
+                youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
             }
-            sendPM(target, msg); 
-        }, reqplayers);
-	} 
-    else if(simplified[0] === "!tf2" || simplified[0] === "!teamfortress") {
-        var additional = null;
-        if(simplified[1] === "tags") {
-            additional = ["raw", "tags"];
-        }
-		getGameInfo("tf2", "tf2.djazz.se", function(err, msg) {
-            if(err) { 
-                sendPM(target, err); 
-                return;
+        } else if(link.indexOf("youtube.com") !== -1) {
+        var det = link.match("[\\?&]v=([^&#]*)")[1];
+            if(det) {
+            youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
             }
-            sendPM(target, msg); 
-        }, additional);
-	} 
-	else if(simplified[0] === "!ep") {
-		var param = simplified[1];
-		mylog(param);
-		if(param != null) {
-			var epis = param.match(/^s([0-9]+)e([0-9]+)$/i);
-			if(epis){
-			var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1];
-			sendPM(target, nick+": Watch the episode you requested here: "+link);
-			} else {
-				sendPM(target, irc.colors.wrap("dark_red",nick+": Correct usage !ep s[season number]e[episode number]"));
-			}
-		} else {
-			sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
-		}
-	}
-	else if(simplified[0] === "!nextep") {
-		var counter = 0;
-		var now = Date.now();
-		do {
-			var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
-		} while (timeLeft === 0 && counter < 26);
-		if (counter === 26) {
-			sendPM(target, "Season 4 is over :(");
-		} else {
-			sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
-		}
-	}
-	else if(simplified[0] === "!np") {
-		getCurrentSongData(function(d, e, i) { if(i) { sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/");} else { sendPM(target, d)}});
-	}
-	else if(simplified[0] === "!viewers") {
-		livestreamViewerCount((function(r) { sendPM(target, r+" | Livestream: http://djazz.se/live/");}));
-	}
-	if(findUrls(message).length > 0) {
-		var link = findUrls(message)[0];
-		if(link.indexOf("youtu.be") !== -1) {
-		var det = link.substring(link.indexOf('.be/')+4);
-			if(det) {
-				youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
-			}
-		} else if(link.indexOf("youtube.com") !== -1) {
-		var det = link.match("[\\?&]v=([^&#]*)")[1];
-			if(det) {
-			youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
-			}
-		} else if(link.indexOf("dailymotion.com/video/") !== -1) {
-			var det = link.match("/video/([^&#]*)")[1];
-			if(det) {
-				dailymotion(det, (function(data) {
-					sendPM(target, "Dailymotion video \""+data.title+"\" Uploaded by \""+data["owner.screenname"]+"\"");
-				}))
-			}
-		}
-	}
+        } else if(link.indexOf("dailymotion.com/video/") !== -1) {
+            var det = link.match("/video/([^&#]*)")[1];
+            if(det) {
+                dailymotion(det, (function(data) {
+                    sendPM(target, "Dailymotion video \""+data.title+"\" Uploaded by \""+data["owner.screenname"]+"\"");
+                }))
+            }
+        }
+    }else if(isMentioned) {
+        sendPM(target, nick+": Hello there!");
+    } 
 }
+
+//*******************************************************************************************************
+// This is where the magic happens
+//*******************************************************************************************************
 
 var bot = new irc.Client(SERVER, NICK, {
 	channels: [CHANNEL],

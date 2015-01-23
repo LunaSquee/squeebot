@@ -9,7 +9,6 @@
     },
 	"dependencies":{
 		"irc":"0.3.6",
-		"request":"2.34.0",
 		"colors":"0.6.2",
 		"youtube-feeds":"2.2.1",
 		"gamedig":"0.2.8"
