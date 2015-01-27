@@ -10,6 +10,8 @@ var util = require('util');
 var readline = require('readline');
 var youtube = require('youtube-feeds');
 var gamedig = require('gamedig');
+var events = require("events");
+var emitter = new events.EventEmitter();
 var loginDetails = require(__dirname+"/login-details.json");
 
 // Config
@@ -312,10 +314,36 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     } 
 }
 
+// Relays irc messages to clients
+
+function ircRelayMessageHandle(c) {
+	emitter.once('newIrcMessage', function (from, to, message) {
+		if (c.writable) {
+			c.write(from+':'+to+':'+message+'\r\n');
+			ircRelayMessageHandle(c);
+		}
+	});
+}
+
+function ircRelayServer(){
+	var net = require('net');
+	var server = net.createServer(function(c) { //'connection' listener
+		console.log('client connected');
+		c.on('end', function() {
+			console.log('client disconnected');
+		});
+		ircRelayMessageHandle(c);
+	});
+	server.listen(9977, function() { //'listening' listener
+		console.log('server bound');
+	});
+}
+
 //*******************************************************************************************************
 // This is where the magic happens
 //*******************************************************************************************************
 
+ircRelayServer();
 var bot = new irc.Client(SERVER, NICK, {
 	channels: [CHANNEL],
 	password: IDENT,
@@ -341,6 +369,7 @@ bot.on('message', function (from, to, message) {
 	var isMentioned = simplified.indexOf(NICK) !== -1;
 	logChat(from, to, message, isMentioned);
 	handleMessage(from, to, message, simplified, isMentioned, false);
+	emitter.emit('newIrcMessage', from, to, message);
 });
 bot.on('join', function (channel, nick) {
 	if (nick === NICK) {
