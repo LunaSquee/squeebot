@@ -3,6 +3,7 @@
 // IRC bot by LunaSquee (Originally djazz, best poni :3)
 
 // Modules
+var net = require('net');
 var http = require('http');
 var irc = require('irc');
 var colors = require('colors');
@@ -12,15 +13,15 @@ var youtube = require('youtube-feeds');
 var gamedig = require('gamedig');
 var events = require("events");
 var emitter = new events.EventEmitter();
-var loginDetails = require(__dirname+"/login-details.json");
+var settings = require(__dirname+"/settings.json");
 
 // Config
-var SERVER = 'irc.canternet.org';        // The server we want to connect to
-var PORT = 6667;                    // The connection port which is usually 6667
-var NICK = loginDetails.username;   // The bot's nickname 
-var IDENT = loginDetails.password;  // Password of the bot. Set to null to not use password login.
+var SERVER = settings.server;       // The server we want to connect to
+var PORT = settings.port || 6667;   // The connection port which is usually 6667
+var NICK = settings.username;       // The bot's nickname
+var IDENT = settings.password;      // Password of the bot. Set to null to not use password login.
 var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
-var CHANNEL = '#BronyTalk';	        // The default channel for the bot 
+var CHANNEL = settings.channel;     // The default channel for the bot
 
 // Episode countdown
 var airDate = Date.UTC(2013, 11-1, 23, 14, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
@@ -103,7 +104,7 @@ var commands = {
             reqplayers = true;
         }
         
-        getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
+        getGameInfo("minecraft", "minecraft.djazz.se", function(err, msg) {
             if(err) { 
                 sendPM(target, err); 
                 return;
@@ -114,18 +115,34 @@ var commands = {
     
     "!mc":{"action":(function(simplified, nick, chan, message, target) {
         var reqplayers = false;
-        
+
         if(simplified[1] === "players") {
             reqplayers = true;
         }
-        
-        getGameInfo("minecraft", "vm.djazz.se", function(err, msg) {
+
+        getGameInfo("minecraft", "minecraft.djazz.se", function(err, msg) {
             if(err) { 
-                sendPM(target, err); 
+                sendPM(target, err);
                 return;
             }
-            sendPM(target, msg); 
+            sendPM(target, msg);
         }, reqplayers);
+    })},
+
+    "!mumble":{"action":(function(simplified, nick, chan, message, target) {
+        var requsers = false;
+
+        if(simplified[1] === "users") {
+            requsers = true;
+        }
+
+        getGameInfo("mumble", "mumble.djazz.se", function(err, msg) {
+            if(err) {
+                sendPM(target, err);
+                return;
+            }
+            sendPM(target, msg);
+        }, requsers);
     })},
     
     "!episode":{"action":(function(simplified, nick, chan, message, target) {
@@ -182,15 +199,15 @@ function getCurrentSong(callback) {
     JSONGrabber("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
             if(content.title != null) {
-				var theTitle = new Buffer(content.title, "utf8").toString("utf8");
-				var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
-				if(splitUp.length===2) {
-					theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
-				}
-				callback(theTitle, content.listeners, true);
-			} else {
-				callback("Parasprite Radio is offline!", "", false);
-			}
+                var theTitle = new Buffer(content.title, "utf8").toString("utf8");
+                var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
+                if(splitUp.length===2) {
+                    theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
+                }
+                callback(theTitle, content.listeners, true);
+            } else {
+                callback("Parasprite Radio is offline!", "", false);
+            }
         } else {
             callback("Parasprite Radio is offline!", "", false);
         }
@@ -198,11 +215,11 @@ function getCurrentSong(callback) {
 }
 
 // Gameserver info (This function makes me puke)
-function getGameInfo(game, ip, callback, additional) {
+function getGameInfo(game, host, callback, additional) {
     Gamedig.query(
     {
         type: game,
-        host: ip
+        host: host
     },
         function(state) {
             if(state.error) callback("Server is offline!", null);
@@ -210,9 +227,9 @@ function getGameInfo(game, ip, callback, additional) {
                 switch(game) {
                     case "tf2":
                         if(additional) {
-                            callback(null, "[Team Fortress 2 server] " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
+                            callback(null, "[Team Fortress 2] " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
                         } else {
-                            callback(null, "[Team Fortress 2 server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.maxplayers);
+                            callback(null, "[Team Fortress 2] IP: "+host+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.maxplayers);
                         }
                         break;
                     case "minecraft":
@@ -222,12 +239,43 @@ function getGameInfo(game, ip, callback, additional) {
                                 state.players.forEach(function(t) {
                                     players.push(t.name);
                                 });
-                                callback(null, "[Minecraft server] Players: "+players.join(", "));
+                                callback(null, "[Minecraft] Players: "+players.join(", "));
                             } else {
-                                callback(null, "[Minecraft server] Players: None");
+                                callback(null, "[Minecraft] No players");
                             }
                         } else {
-                            callback(null, "[Minecraft server] IP: "+ip+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
+                            callback(null, "[Minecraft] IP: "+host+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
+                        }
+                        break;
+                    case "mumble":
+                        if(additional!=null && additional === true) {
+                            if(state.players.length > 0) {
+                                var players = [];
+                                // Sort, show most active first
+                                state.players.sort(function (u1, u2) {
+                                    return u1.idlesecs - u2.idlesecs;
+                                });
+                                state.players.forEach(function(t) {
+                                    var isMuted = t.mute || t.selfMute;
+                                    var isDeaf = t.deaf || t.selfDeaf;
+                                    var o = t.name;
+                                    if (isMuted && isDeaf) {
+                                        o = irc.colors.wrap("dark_red", o);
+                                    } else if (isMuted) {
+                                        o = irc.colors.wrap("orange", o);
+                                    } else if (isDeaf) {
+                                        o = irc.colors.wrap("light_blue", o);
+                                    } else {
+                                        o = irc.colors.wrap("light_green", o);
+                                    }
+                                    players.push(o);
+                                });
+                                callback(null, "[Mumble] Users: "+players.join(", "));
+                            } else {
+                                callback(null, "[Mumble] No users ");
+                            }
+                        } else {
+                            callback(null, "[Mumble server] IP: "+host+" Users online: "+state.players.length);
                         }
                         break;
                 };
@@ -250,11 +298,11 @@ function livestreamViewerCount(callback) {
     JSONGrabber("http://djazz.se/live/info.php", function(success, content) {
         if(success) {
             var view = content.viewcount;
-			if(view!=-1) {
-				callback("Viewers: "+view);
-			} else {
-				callback("The livestream is offline.");
-			}
+            if(view!=-1) {
+                callback("Viewers: "+view);
+            } else {
+                callback("The livestream is offline.");
+            }
         } else {
             callback("The livestream is offline.");
         }
@@ -271,20 +319,20 @@ function findUrls(text) {
 
     while((matchArray = regexToken.exec(source))!== null) {
         var token = matchArray[0];
-		if(token.indexOf("youtube.com/watch?v=") !== -1) {
-			urlArray.push(token);
-		} else if(token.indexOf("youtu.be/") !== -1) {
-			urlArray.push(token);
-		} else if(token.indexOf("dailymotion.com/video/") !== -1) {
-			urlArray.push(token);
-		}
+        if(token.indexOf("youtube.com/watch?v=") !== -1) {
+            urlArray.push(token);
+        } else if(token.indexOf("youtu.be/") !== -1) {
+            urlArray.push(token);
+        } else if(token.indexOf("dailymotion.com/video/") !== -1) {
+            urlArray.push(token);
+        }
     }
     return urlArray;
 }
 
 // Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
-	var target = isPM ? nick : chan;
+    var target = isPM ? nick : chan;
     if(simplified[0].toLowerCase() in commands) {
         var command = commands[simplified[0].toLowerCase()];
         if("action" in command) 
@@ -317,191 +365,211 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
 // Relays irc messages to clients
 
 function ircRelayMessageHandle(c) {
-	emitter.once('newIrcMessage', function (from, to, message) {
-		if (c.writable) {
-			c.write(from+':'+to+':'+message+'\r\n');
-			ircRelayMessageHandle(c);
-		}
-	});
+    emitter.once('newIrcMessage', function (from, to, message) {
+        if (c.writable) {
+            c.write(from+':'+to+':'+message+'\r\n');
+            ircRelayMessageHandle(c);
+        }
+    });
 }
 
-function ircRelayServer(){
-	var net = require('net');
-	var server = net.createServer(function(c) { //'connection' listener
-		console.log('client connected');
-		c.on('end', function() {
-			console.log('client disconnected');
-		});
-		ircRelayMessageHandle(c);
-	});
-	server.listen(9977, function() { //'listening' listener
-		console.log('server bound');
-	});
+function ircRelayServer() {
+    if (!settings.enableRelay) return;
+
+    var server = net.createServer(function (c) { //'connection' listener
+        info('RELAY: Client %s is connecting...', c.remoteAddress);
+        c.setEncoding('utf8');
+        c.once('end', function() {
+            clearTimeout(timeout);
+            info('RELAY: Client disconnected');
+        });
+        c.once('data', function (data) {
+            data = data.trim();
+            clearTimeout(timeout);
+
+            if (data === settings.relayPassword) {
+                info('RELAY: Client logged in');
+                c.write('Password accepted');
+                ircRelayMessageHandle(c);
+            } else {
+                info('RELAY: Client supplied wrong password: %s', data);
+                c.end("Wrong password");
+            }
+        });
+        var timeout = setTimeout(function () {
+            c.end("You were too slow :I");
+            info('RELAY: Client was too slow');
+        }, 50*1000);
+    });
+    server.listen(settings.relayPort, function () {
+        info('RELAY: Relay server listening on port %d', settings.relayPort);
+    });
 }
 
 //*******************************************************************************************************
 // This is where the magic happens
 //*******************************************************************************************************
 
-ircRelayServer();
+
 var bot = new irc.Client(SERVER, NICK, {
-	channels: [CHANNEL],
-	password: IDENT,
-	realName: REALNAME,
-	port: PORT,
-	//secure: true,
-	//certExpired: true,
-	stripColors: true
+    channels: [CHANNEL],
+    password: IDENT,
+    realName: REALNAME,
+    port: PORT,
+    //secure: true,
+    //certExpired: true,
+    stripColors: true
 });
 var lasttopic = "";
 var lasttopicnick = "";
 
 bot.on('error', function (message) {
-	info('ERROR: %s: %s', message.command, message.args.join(' '));
+    info('ERROR: %s: %s', message.command, message.args.join(' '));
 });
 bot.on('topic', function (channel, topic, nick) {
-	lasttopic = topic;
-	lasttopicnick = nick;
-	logTopic(channel, topic, nick);
+    lasttopic = topic;
+    lasttopicnick = nick;
+    logTopic(channel, topic, nick);
 });
 bot.on('message', function (from, to, message) {
-	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-	var isMentioned = simplified.indexOf(NICK) !== -1;
-	logChat(from, to, message, isMentioned);
-	handleMessage(from, to, message, simplified, isMentioned, false);
-	emitter.emit('newIrcMessage', from, to, message);
+    var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+    var isMentioned = simplified.indexOf(NICK) !== -1;
+    logChat(from, to, message, isMentioned);
+    handleMessage(from, to, message, simplified, isMentioned, false);
 });
 bot.on('join', function (channel, nick) {
-	if (nick === NICK) {
-		info("You joined channel "+channel.bold);
-		rl.setPrompt(util.format("> ".bold.magenta), 2);
-		rl.prompt(true);
-	} else {
-		mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
-	}
+    if (nick === NICK) {
+        info("You joined channel "+channel.bold);
+        rl.setPrompt(util.format("> ".bold.magenta), 2);
+        rl.prompt(true);
+    } else {
+        mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
+    }
 });
 bot.on('part', function (channel, nick, reason) {
-	if (nick !== NICK) {
-		mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
-	} else {
-		mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
-	}
+    if (nick !== NICK) {
+        mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
+    } else {
+        mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
+    }
 });
 bot.on('quit', function (nick, reason, channels) {
-	mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
+    mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
 });
 bot.on('pm', function (nick, message) {
-	logPM(nick, message);
-	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-	var isMentioned = simplified.indexOf(NICK) !== -1;
-	handleMessage(nick, "", message, simplified, isMentioned, true);
+    logPM(nick, message);
+    var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+    var isMentioned = simplified.indexOf(NICK) !== -1;
+    handleMessage(nick, "", message, simplified, isMentioned, true);
 });
 bot.on('notice', function (nick, to, text) {
-	//mylog(nick, to, text);
+    //mylog(nick, to, text);
 });
 bot.on('raw', function (message) {
-	if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1].indexOf("\u0001ACTION ") === 0) {
-		var action = message.args[1].substr(8);
-		action = action.substring(0, action.length-1);
-		mylog("* %s".bold+" %s", message.nick, action);
-	}
+    if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1].indexOf("\u0001ACTION ") === 0) {
+        var action = message.args[1].substr(8);
+        action = action.substring(0, action.length-1);
+        mylog("* %s".bold+" %s", message.nick, action);
+    }
 });
 
 var rl = readline.createInterface({
-	input: process.stdin,
-	output: process.stdout
+    input: process.stdin,
+    output: process.stdout
 });
 rl.setPrompt("");
 
 rl.on('line', function (line) {
-	
-	if (line === '') {
-		return;
-	}
-	if (line.indexOf('/quit') === 0) {
-		info("Quitting...");
-		rl.setPrompt("");
-		bot.disconnect("Quitting..", function () {
-			process.exit(0);
-		});
-		return;
-	} else if (line.indexOf('/msg ') === 0) {
-		var split = line.split(" ");
-		var nick = split[1];
-		var msg = split.slice(2).join(" ");
-		sendPM(nick, msg);
-	} else if (line.indexOf('/join ') === 0) {
-		var chan = line.substr(6);
-		bot.join(chan);
-	} else if (line.indexOf('/part ') === 0) {
-		var chan = line.substr(6);
-		bot.part(chan, "Squeebot goes bye bye from this channel.");
-	} else if (line.indexOf('/me ') === 0) {
-		var msg = line.substr(4);
-		bot.action(CHANNEL, msg);
-	} else if (line === '/topic') {
-		logTopic(CHANNEL, lasttopic, lasttopicnick);
-	} else if (line.indexOf("/") === 0) {
-		info(("Unknown command "+line.substr(1).bold).red);
-	} else {
-		sendChat(line);
-	}
-	rl.prompt(true);
+
+    if (line === '') {
+        return;
+    }
+    if (line.indexOf('/quit') === 0) {
+        info("Quitting...");
+        rl.setPrompt("");
+        bot.disconnect("Quitting..", function () {
+            process.exit(0);
+        });
+        return;
+    } else if (line.indexOf('/msg ') === 0) {
+        var split = line.split(" ");
+        var nick = split[1];
+        var msg = split.slice(2).join(" ");
+        sendPM(nick, msg);
+    } else if (line.indexOf('/join ') === 0) {
+        var chan = line.substr(6);
+        bot.join(chan);
+    } else if (line.indexOf('/part ') === 0) {
+        var chan = line.substr(6);
+        bot.part(chan, NICK+" goes bye bye from this channel.");
+    } else if (line.indexOf('/me ') === 0) {
+        var msg = line.substr(4);
+        bot.action(CHANNEL, msg);
+    } else if (line === '/topic') {
+        logTopic(CHANNEL, lasttopic, lasttopicnick);
+    } else if (line.indexOf("/") === 0) {
+        info(("Unknown command "+line.substr(1).bold).red);
+    } else {
+        sendChat(line);
+    }
+    rl.prompt(true);
 });
 
 info('Connecting...');
+ircRelayServer();
 
 function mylog() {
-	// rl.pause();
-	rl.output.write('\x1b[2K\r');
-	console.log.apply(console, Array.prototype.slice.call(arguments));
-	// rl.resume();
-	rl._refreshLine();
+    // rl.pause();
+    rl.output.write('\x1b[2K\r');
+    console.log.apply(console, Array.prototype.slice.call(arguments));
+    // rl.resume();
+    rl._refreshLine();
 }
 
 function info() {
-	arguments[0] = "  -- ".magenta+arguments[0];
-	mylog(util.format.apply(null, arguments));
+    arguments[0] = "  -- ".magenta+arguments[0];
+    mylog(util.format.apply(null, arguments));
 }
 
 function sendChat() {
-	var message = util.format.apply(null, arguments);
-	logChat(NICK, CHANNEL, message);
-	bot.say(CHANNEL, message);
+    var message = util.format.apply(null, arguments);
+    logChat(NICK, CHANNEL, message);
+    bot.say(CHANNEL, message);
 }
 function sendPM(target) {
-	if (target === CHANNEL) {
-		sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
-		return;
-	}
-	var message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
-	logPM(NICK+" -> "+target, message);
-	bot.say(target, message);
+    if (target === CHANNEL) {
+        sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
+        return;
+    }
+    var message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
+    logPM(NICK+" -> "+target, message);
+    bot.say(target, message);
 }
 function logChat(nick, chan, message, isMentioned) {
-	if (isMentioned) {
-		nick = nick.yellow;
-	}
-	mylog('[%s] %s: %s', chan, nick.bold, message);
+    if (isMentioned) {
+        nick = nick.yellow;
+    }
+    mylog('[%s] %s: %s', chan, nick.bold, message);
+    emitter.emit('newIrcMessage', nick, chan, message);
 }
 function logPM(target, message) {
-	mylog('%s: %s', target.bold.blue, message);
+    mylog('%s: %s', target.bold.blue, message);
 }
 function logTopic(channel, topic, nick) {
-	info('Topic for %s is "%s", set by %s', channel.bold, topic.yellow, nick.bold.cyan);
+    info('Topic for %s is "%s", set by %s', channel.bold, topic.yellow, nick.bold.cyan);
 }
 function zf(v) {
-	if (v > 9) {
-		return ""+v;
-	} else {
-		return "0"+v;
-	}
+    if (v > 9) {
+        return ""+v;
+    } else {
+        return "0"+v;
+    }
 }
 function readableTime(timems, ignoreMs) {
-	var time = timems|0;
-	var ms = ignoreMs?'':"."+zf((timems*100)%100|0);
-	if (time < 60) return zf(time)+ms+"s";
-	else if (time < 3600) return zf(time / 60|0)+"m "+zf(time % 60)+ms+"s";
-	else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
-	else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
+    var time = timems|0;
+    var ms = ignoreMs?'':"."+zf((timems*100)%100|0);
+    if (time < 60) return zf(time)+ms+"s";
+    else if (time < 3600) return zf(time / 60|0)+"m "+zf(time % 60)+ms+"s";
+    else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
+    else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
 } 
