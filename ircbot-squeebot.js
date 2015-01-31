@@ -335,7 +335,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
     if(simplified[0].toLowerCase() in commands) {
         var command = commands[simplified[0].toLowerCase()];
-        if("action" in command) 
+        if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
     }else if(findUrls(message).length > 0) {
         var link = findUrls(message)[0];
@@ -377,29 +377,69 @@ function ircRelayServer() {
     if (!settings.enableRelay) return;
 
     var server = net.createServer(function (c) { //'connection' listener
+        var pingWait = null, pingTimeout = null;
+
+        function ping() {
+            clearTimeout(pingWait);
+            pingWait = setTimeout(function () {
+                c.write('ping');
+                //info('RELAY: Send ping');
+                pingTimeout = setTimeout(function () {
+                    c.destroy();
+                    info('RELAY: Connection timed out');
+                }, 15*1000);
+            }, 15*1000);
+        }
+        function pong() {
+            //info('RELAY: Got pong');
+            clearTimeout(pingTimeout);
+            ping();
+        }
+
+        var firstData = true;
         info('RELAY: Client %s is connecting...', c.remoteAddress);
         c.setEncoding('utf8');
         c.once('end', function() {
             clearTimeout(timeout);
             info('RELAY: Client disconnected');
         });
-        c.once('data', function (data) {
-            data = data.trim();
+        c.once('error', function (err) {
             clearTimeout(timeout);
+            info('RELAY: Client error: '+err);
+            c.destroy();
+        });
+        c.once('close', function() {
+            clearTimeout(timeout);
+            clearTimeout(pingWait);
+            clearTimeout(pingTimeout);
+            info('RELAY: Client socket closed');
+        });
+        c.on('data', function (data) {
+            if (firstData) {
+                firstData = false;
+                data = data.trim();
+                clearTimeout(timeout);
 
-            if (data === settings.relayPassword) {
-                info('RELAY: Client logged in');
-                c.write('Password accepted');
-                ircRelayMessageHandle(c);
+                if (data === settings.relayPassword) {
+                    info('RELAY: Client logged in');
+                    c.write('Password accepted');
+                    ircRelayMessageHandle(c);
+                    ping();
+                } else {
+                    info('RELAY: Client supplied wrong password: %s', data);
+                    c.end("Wrong password");
+                }
             } else {
-                info('RELAY: Client supplied wrong password: %s', data);
-                c.end("Wrong password");
+                if (data === 'pong') {
+                    pong();
+                }
             }
         });
         var timeout = setTimeout(function () {
             c.end("You were too slow :I");
-            info('RELAY: Client was too slow');
-        }, 50*1000);
+            info('RELAY: Client was too slow (timeout during handshake)');
+        }, 10*1000);
+
     });
     server.listen(settings.relayPort, function () {
         info('RELAY: Relay server listening on port %d', settings.relayPort);
@@ -439,13 +479,24 @@ bot.on('message', function (from, to, message) {
 });
 bot.on('join', function (channel, nick) {
     if (nick === NICK) {
-        info("You joined channel "+channel.bold);
+        mylog((" --> ".green.bold)+"You joined channel "+channel.bold);
         rl.setPrompt(util.format("> ".bold.magenta), 2);
         rl.prompt(true);
     } else {
         mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
     }
 });
+bot.on('kick', function (channel, nick, by, reason, message) {
+    if (nick === NICK) {
+        mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+        info("Rejoining "+channel.bold+" in 5 seconds...");
+        setTimeout(function () {
+            bot.join(channel);
+        }, 5*1000);
+    } else {
+        mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+    }
+})
 bot.on('part', function (channel, nick, reason) {
     if (nick !== NICK) {
         mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
@@ -485,9 +536,10 @@ rl.on('line', function (line) {
         return;
     }
     if (line.indexOf('/quit') === 0) {
+        var msg = line.substring(6) || "Quitting...";
         info("Quitting...");
         rl.setPrompt("");
-        bot.disconnect("Quitting..", function () {
+        bot.disconnect(msg, function () {
             process.exit(0);
         });
         return;
