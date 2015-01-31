@@ -383,6 +383,15 @@ function ircRelayServer() {
             clearTimeout(timeout);
             info('RELAY: Client disconnected');
         });
+        c.once('error', function (err) {
+            clearTimeout(timeout);
+            info('RELAY: Client error: '+err);
+            c.end();
+        });
+        c.once('close', function() {
+            clearTimeout(timeout);
+            info('RELAY: Client socket closed');
+        });
         c.once('data', function (data) {
             data = data.trim();
             clearTimeout(timeout);
