@@ -38,6 +38,17 @@ var commands = {
         sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
     }), "description":"Channel Information"},
     
+    "!nicks":{"action":(function(simplified, nick, chan, message, target) {
+        //sendPM(target, nick+": "+nicks[chan]);
+        var testing = [];
+        var channel = chan.toLowerCase();
+        for(var key in nicks[channel]) {
+            var mode = iconvert.modeToText(nicks[channel][key]);
+            testing.push(key+" - "+mode);
+        }
+        sendPM(target, nick+": "+testing.join(", "));
+    })},
+    
     "!rules":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
     }), "description":"Channel Rules"},
@@ -160,6 +171,176 @@ var commands = {
         }
     }),"description":"Open a pony episode"}
 };
+
+/*
+    ===================
+    NICKNAME UTILITIES!
+    ===================    
+*/
+var nicks = {};
+var iconvert = {};
+
+function INicksGetMode(nickname, onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in nicks) {
+        if(nickname in nicks[channel]) {
+            return nicks[channel][nickname];
+        }
+    }
+}
+
+function IChannelNames(onChannel, namesObj) {
+    var channel = onChannel.toLowerCase();
+    var initial = {}
+    for(var key in namesObj) {
+        var prefix = iconvert.prefixToMode(namesObj[key]);
+        initial[key] = prefix;
+    }
+    nicks[channel] = initial;
+}
+
+function IHandleJoin(nickname, onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in nicks) {
+        nicks[channel][nickname] = "";
+    }
+}
+
+function IHandlePart(nickname, onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in nicks) {
+        if(nickname in nicks[channel]) {
+            delete nicks[channel][nickname];
+        }
+    }
+}
+
+function IHandleQuit(nickname) {
+    for(var key in nicks) {
+        var obj = nicks[key];
+        if(nickname in obj) {
+            delete nicks[key][nickname];
+        }
+    }
+}
+
+function IHandleModeAdded(nickname, mode, onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in nicks) {
+        var chan = nicks[channel];
+        if(nickname in chan) {
+            var oldmode = chan[nickname];
+            if(oldmode == "q" && mode == "o") return;
+            if(oldmode == "a" && mode == "o") return;
+            nicks[channel][nickname] = mode;
+        }
+    }
+}
+
+function IHandleModeRemoved(nickname, mode, onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in nicks) {
+        var chan = nicks[channel];
+        if(nickname in chan) {
+            nicks[channel][nickname] = "";
+        }
+    }
+}
+
+function IHandleNickChange(oldNick, newNick) {
+    for(var key in nicks) {
+        var obj = nicks[key];
+        if(oldNick in obj) {
+            var backupMode = obj[oldNick];
+            delete nicks[key][oldNick];
+            nicks[key][newNick] = backupMode;
+        }
+    }
+}
+
+function ILeftAChannel(channel) {
+    if(channel.toLowerCase() in nicks) {
+        delete nicks[channel.toLowerCase()];
+    }
+}
+
+iconvert.prefixToMode = (function(prefix) {
+    var mode = "";
+    switch (prefix) {
+        case "~":
+            mode = "q";
+            break;
+        case "&":
+            mode = "a";
+            break;
+        case "@":
+            mode = "o";
+            break;
+        case "%":
+            mode = "h";
+            break;
+        case "+":
+            mode = "v";
+            break;
+        default:
+            mode = "";
+            break;
+    }
+    return mode;
+});
+
+iconvert.modeToPrefix = (function(mode) {
+    var prefix = "";
+    switch (mode) {
+        case "q":
+            prefix = "~";
+            break;
+        case "a":
+            prefix = "&";
+            break;
+        case "o":
+            prefix = "@";
+            break;
+        case "h":
+            prefix = "%";
+            break;
+        case "v":
+            prefix = "+";
+            break;
+        default:
+            prefix = "";
+            break;
+    }
+    return prefix;
+});
+
+iconvert.modeToText = (function(mode) {
+    var prefix = "";
+    switch (mode) {
+        case "q":
+            prefix = "Owner";
+            break;
+        case "a":
+            prefix = "Admin";
+            break;
+        case "o":
+            prefix = "Op";
+            break;
+        case "h":
+            prefix = "Halfop";
+            break;
+        case "v":
+            prefix = "Voice";
+            break;
+        default:
+            prefix = "Normal";
+            break;
+    }
+    return prefix;
+});
+/*
+    End of nick utils.
+*/
 
 // List all commands that have a description set
 function listCommands(target, nick) {
@@ -492,28 +673,37 @@ bot.on('join', function (channel, nick) {
         rl.prompt(true);
     } else {
         mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
+        IHandleJoin(nick, channel);
     }
 });
 bot.on('kick', function (channel, nick, by, reason, message) {
     if (nick === NICK) {
         mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
         info("Rejoining "+channel.bold+" in 5 seconds...");
+        ILeftAChannel(channel);
         setTimeout(function () {
             bot.join(channel);
         }, 5*1000);
     } else {
         mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+        IHandlePart(nick, channel);
     }
 })
 bot.on('part', function (channel, nick, reason) {
     if (nick !== NICK) {
         mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
+        IHandlePart(nick, channel);
     } else {
         mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
+        ILeftAChannel(channel);
     }
 });
 bot.on('quit', function (nick, reason, channels) {
     mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
+    IHandleQuit(nick);
+});
+bot.on('names', function(channel, nicks) {
+    IChannelNames(channel, nicks);
 });
 bot.on('pm', function (nick, message) {
     logPM(nick, message);
@@ -530,6 +720,12 @@ bot.on('raw', function (message) {
         action = action.substring(0, action.length-1);
         mylog("* %s".bold+" %s", message.nick, action);
     }
+});
+bot.on('+mode', function(channel, by, mode, argument, message) {
+    IHandleModeAdded(argument, mode, channel);
+});
+bot.on('-mode', function(channel, by, mode, argument, message) {
+    IHandleModeRemoved(argument, mode, channel);
 });
 
 var rl = readline.createInterface({
