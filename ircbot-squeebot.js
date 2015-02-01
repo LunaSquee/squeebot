@@ -91,7 +91,7 @@ var commands = {
         } else {
             sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
         }
-    }),"description":"Number of people watching the livestream"},
+    }),"description":"Time left until next pony episode."},
     
     "!episodes":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
@@ -143,7 +143,7 @@ var commands = {
             }
             sendPM(target, msg);
         }, requsers);
-    })},
+    }), "description":"Mumble Server"},
     
     "!episode":{"action":(function(simplified, nick, chan, message, target) {
         var param = simplified[1]; 
@@ -192,6 +192,14 @@ function JSONGrabber(url, callback) {
     }).on('error', function(e) {
         callback(false, e.message);
     });
+}
+
+// Experimental Function!
+function formatmesg(message) {
+    var pass1 = message.match(/#c/g) ? message.replace(/#c/g, '\u0003').replace(/#f/g, "\u000f") + '\u000f' : message;
+    var pass2 = pass1.match(/#b/g) ? pass1.replace(/#b/g, '\u0002') : pass1;
+    var pass3 = pass2.match(/#u/g) ? pass2.replace(/#u/g, '\u001F') : pass2;
+    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u0014') : pass3;
 }
 
 // Get current Parasprite Radio song
@@ -562,7 +570,7 @@ rl.on('line', function (line) {
     } else if (line.indexOf("/") === 0) {
         info(("Unknown command "+line.substr(1).bold).red);
     } else {
-        sendChat(line);
+        sendChat(formatmesg(line));
     }
     rl.prompt(true);
 });
