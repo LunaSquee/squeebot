@@ -39,7 +39,6 @@ var commands = {
     }), "description":"Channel Information"},
     
     "!nicks":{"action":(function(simplified, nick, chan, message, target) {
-        //sendPM(target, nick+": "+nicks[chan]);
         var testing = [];
         var channel = chan.toLowerCase();
         for(var key in nicks[channel]) {
@@ -225,6 +224,7 @@ function IHandleQuit(nickname) {
 }
 
 function IHandleModeAdded(nickname, mode, onChannel) {
+    if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
         var chan = nicks[channel];
@@ -238,6 +238,7 @@ function IHandleModeAdded(nickname, mode, onChannel) {
 }
 
 function IHandleModeRemoved(nickname, mode, onChannel) {
+    if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
         var chan = nicks[channel];
@@ -727,6 +728,7 @@ bot.on('+mode', function(channel, by, mode, argument, message) {
 bot.on('-mode', function(channel, by, mode, argument, message) {
     IHandleModeRemoved(argument, mode, channel);
 });
+bot.on('nick', IHandleNickChange);
 
 var rl = readline.createInterface({
     input: process.stdin,
