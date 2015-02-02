@@ -716,7 +716,7 @@ bot.on('notice', function (nick, to, text) {
     //mylog(nick, to, text);
 });
 bot.on('raw', function (message) {
-    if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1].indexOf("\u0001ACTION ") === 0) {
+    if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1] && message.args[1].indexOf("\u0001ACTION ") === 0) {
         var action = message.args[1].substr(8);
         action = action.substring(0, action.length-1);
         mylog("* %s".bold+" %s", message.nick, action);
