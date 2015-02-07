@@ -249,6 +249,7 @@ function IHandleModeRemoved(nickname, mode, onChannel) {
 }
 
 function IHandleNickChange(oldNick, newNick) {
+    emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
     for(var key in nicks) {
         var obj = nicks[key];
         if(oldNick in obj) {
@@ -555,9 +556,9 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
 // Relays irc messages to clients
 
 function ircRelayMessageHandle(c) {
-    emitter.once('newIrcMessage', function (from, to, message) {
+    emitter.once('newIrcMessage', function (from, to, message, type) {
         if (c.writable) {
-            c.write(from+':'+to+':'+message+'\r\n');
+            c.write(type+">"+from+':'+to+':'+message+'\r\n');
             ircRelayMessageHandle(c);
         }
     });
@@ -674,6 +675,7 @@ bot.on('join', function (channel, nick) {
         rl.prompt(true);
     } else {
         mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
+        emitter.emit('newIrcMessage', nick, channel, " has joined ", "JOIN");
         IHandleJoin(nick, channel);
     }
 });
@@ -687,12 +689,14 @@ bot.on('kick', function (channel, nick, by, reason, message) {
         }, 5*1000);
     } else {
         mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+        emitter.emit('newIrcMessage', nick, channel, " was kicked by "+message.nick+" ("+reason+")", "KICK");
         IHandlePart(nick, channel);
     }
 })
 bot.on('part', function (channel, nick, reason) {
     if (nick !== NICK) {
         mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
+        emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
         IHandlePart(nick, channel);
     } else {
         mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
@@ -701,6 +705,7 @@ bot.on('part', function (channel, nick, reason) {
 });
 bot.on('quit', function (nick, reason, channels) {
     mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
+    emitter.emit('newIrcMessage', nick, "", " has quit ("+reason+")", "QUIT");
     IHandleQuit(nick);
 });
 bot.on('names', function(channel, nicks) {
@@ -716,9 +721,10 @@ bot.on('notice', function (nick, to, text) {
     //mylog(nick, to, text);
 });
 bot.on('raw', function (message) {
-    if (message.command === 'PRIVMSG' && message.args[0] === CHANNEL && message.args[1].indexOf("\u0001ACTION ") === 0) {
+    if (message.command === 'PRIVMSG' && message.args[1].indexOf("\u0001ACTION ") === 0) {
         var action = message.args[1].substr(8);
         action = action.substring(0, action.length-1);
+        emitter.emit('newIrcMessage', message.nick, message.args[0], action, "ACTION");
         mylog("* %s".bold+" %s", message.nick, action);
     }
 });
@@ -808,7 +814,7 @@ function logChat(nick, chan, message, isMentioned) {
         nick = nick.yellow;
     }
     mylog('[%s] %s: %s', chan, nick.bold, message);
-    emitter.emit('newIrcMessage', nick, chan, message);
+    emitter.emit('newIrcMessage', nick, chan, message, "PRIVMSG");
 }
 function logPM(target, message) {
     mylog('%s: %s', target.bold.blue, message);
