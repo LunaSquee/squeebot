@@ -19,6 +19,7 @@ Template:
     "server": "irc.canternet.org",
     "port": 6667,
     "channel": "#BronyTalk",
+    "prefix":"!",
 
     "enableRelay": false,
     "relayPort": 9977,

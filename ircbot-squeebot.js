@@ -22,23 +22,45 @@ var NICK = settings.username;       // The bot's nickname
 var IDENT = settings.password;      // Password of the bot. Set to null to not use password login.
 var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel for the bot
-
+var PREFIX = settings.prefix;       // The prefix of commands
 // Episode countdown
 var airDate = Date.UTC(2013, 11-1, 23, 14, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
+// Rules for individual channels.
+var rules = {"#bronytalk":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."],
+            "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]}
+
 // This is the list of all your commands.
 // "!command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
-    "!commands":{"action":(function(simplified, nick, chan, message, target) {
+    "commands":{"action":(function(simplified, nick, chan, message, target) {
         listCommands(target, nick)
-    }), "description":"All Commands"},
+    }), "description":"- All Commands"},
     
-    "!infoc":{"action":(function(simplified, nick, chan, message, target) {
+    "command":{"action":(function(simplified, nick, chan, message, target) {
+        if(simplified[1]) {
+            var cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]);
+            if(cmdName in commands) {
+                var cmdDesc = commands[cmdName].description;
+                if(cmdDesc) {
+                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmdDesc);
+                } else {
+                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f - Undefined command!");
+                }
+            } else {
+                sendPM(target, nick+": That is not a known command!");
+            }
+        } else {
+            sendPM(target, nick+": Usage: \u0002"+PREFIX+"command\u000f <command>");
+        }
+    }), "description":"<command> - Show command description"},
+    
+    "infoc":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
-    }), "description":"Channel Information"},
+    }), "description":"- Channel Information"},
     
-    "!nicks":{"action":(function(simplified, nick, chan, message, target) {
+    "nicks":{"action":(function(simplified, nick, chan, message, target) {
         var testing = [];
         var channel = chan.toLowerCase();
         for(var key in nicks[channel]) {
@@ -48,11 +70,15 @@ var commands = {
         sendPM(target, nick+": "+testing.join(", "));
     })},
     
-    "!rules":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": [1] - No spam \n [2] - No bots (Squeebot is the only bot for now!) \n [3] - No insulting others");
-    }), "description":"Channel Rules"},
+    "rules":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
+        if(pm) {
+            sendPM(target, "This command can only be executed in a channel.");
+        } else {
+            listRulesForChannel(chan);
+        }
+    }), "description":"- Channel Rules"},
     
-    "!np":{"action":(function(simplified, nick, chan, message, target) {
+    "np":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
                 sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
@@ -60,9 +86,9 @@ var commands = {
                 sendPM(target, d)
             }
         })
-    }), "description":"Currently playing song"},
+    }), "description":"- Currently playing song"},
     
-    "!radio":{"action":(function(simplified, nick, chan, message, target) {
+    "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
                 sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
@@ -70,27 +96,27 @@ var commands = {
                 sendPM(target, d)
             }
         })
-    }), "description":"Parasprite Radio"},
+    }), "description":"- Tune in to Parasprite Radio"},
     
-    "!yay":{"action":(function(simplified, nick, chan, message, target) {
+    "yay":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": http://flutteryay.com")
     })},
     
-    "!squee":{"action":(function(simplified, nick, chan, message, target) {
+    "squee":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q")
     })},
     
-    "!hug":{"action":(function(simplified, nick, chan, message, target) {
+    "hug":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, "*Hugs "+nick+"*");
     })},
     
-    "!viewers":{"action":(function(simplified, nick, chan, message, target) {
+    "viewers":{"action":(function(simplified, nick, chan, message, target) {
         livestreamViewerCount((function(r) { 
             sendPM(target, r+" | Livestream: http://djazz.se/live/")
         }))
-    }),"description":"Number of people watching livestream"},
+    }),"description":"- Number of people watching djazz'es livestream"},
     
-    "!nextep":{"action":(function(simplified, nick, chan, message, target) {
+    "nextep":{"action":(function(simplified, nick, chan, message, target) {
         var counter = 0;
         var now = Date.now();
         do {
@@ -101,13 +127,13 @@ var commands = {
         } else {
             sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
         }
-    }),"description":"Time left until next pony episode."},
+    }),"description":"- Time left until next pony episode."},
     
-    "!episodes":{"action":(function(simplified, nick, chan, message, target) {
+    "episodes":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
-    }),"description":"List of pony episodes"},
+    }),"description":"- List of pony episodes"},
     
-    "!minecraft":{"action":(function(simplified, nick, chan, message, target) {
+    "minecraft":{"action":(function(simplified, nick, chan, message, target) {
         var reqplayers = false;
         
         if(simplified[1] === "players") {
@@ -121,9 +147,9 @@ var commands = {
             }
             sendPM(target, msg); 
         }, reqplayers);
-    }),"description":"Minecraft Server"},
+    }),"description":"[players] - Information about our Minecraft Server"},
     
-    "!mc":{"action":(function(simplified, nick, chan, message, target) {
+    "mc":{"action":(function(simplified, nick, chan, message, target) {
         var reqplayers = false;
 
         if(simplified[1] === "players") {
@@ -139,7 +165,7 @@ var commands = {
         }, reqplayers);
     })},
 
-    "!mumble":{"action":(function(simplified, nick, chan, message, target) {
+    "mumble":{"action":(function(simplified, nick, chan, message, target) {
         var requsers = false;
 
         if(simplified[1] === "users") {
@@ -153,9 +179,9 @@ var commands = {
             }
             sendPM(target, msg);
         }, requsers);
-    }), "description":"Mumble Server"},
+    }), "description":"[users] - Information about our Mumble Server"},
     
-    "!episode":{"action":(function(simplified, nick, chan, message, target) {
+    "episode":{"action":(function(simplified, nick, chan, message, target) {
         var param = simplified[1]; 
         if(param != null) { 
             var epis = param.match(/^s([0-9]+)e([0-9]+)$/i); 
@@ -168,7 +194,7 @@ var commands = {
         } else {
             sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
         }
-    }),"description":"Open a pony episode"}
+    }),"description":"s<Season> e<Episode Number> - Open a pony episode"}
 };
 
 /*
@@ -346,16 +372,46 @@ iconvert.modeToText = (function(mode) {
 
 // List all commands that have a description set
 function listCommands(target, nick) {
-    sendPM(target, nick+": --- SQUEEBOT COMMANDS ---");
     var comms = [];
+    var listofem = [];
+    var variab = false;
+    comms.push("*** "+NICK.toUpperCase()+" COMMANDS ***");
+    comms.push("All "+NICK+" commands start with a "+PREFIX+" prefix.");
+    comms.push("Type  "+PREFIX+"command <command> for more information on that command.");
     for(var command in commands) {
         var obj = commands[command];
         if("description" in obj) {
-            comms.push(command+" - "+obj.description);
+            variab = !variab;
+            listofem.push("\u0002"+irc.colors.wrap((variab?"dark_green":"light_green"), command));
         }
     }
-    sendPM(target, nick+": "+comms.join(", "));
-    sendPM(target, nick+": --- END OF !commands ---");
+    comms.push(listofem.join(" "));
+    comms.push("***** End of "+PREFIX+"commands *****");
+    sendWithDelay(comms, nick, 1000);
+}
+
+function sendWithDelay(messages, target, time) {
+    var timeout = time || 1000;
+    var c = 0;
+    function sendMessageDelayed() {
+        sendPM(target, messages[c]);
+        c++;
+        if(messages[c] != null)
+            setTimeout(sendMessageDelayed, timeout);
+    }
+    sendMessageDelayed()
+}
+
+// Send a list of rules to a channel.
+function listRulesForChannel(onChannel) {
+    var channel = onChannel.toLowerCase();
+    if(channel in rules) {
+        sendPM(channel, "Channel Rules of "+onChannel+": ");
+        var rls = rules[channel];
+        rls.forEach(function(e) {
+            sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
+        });
+    }
 }
 
 // Grab JSON from an url 
@@ -524,8 +580,8 @@ function findUrls(text) {
 // Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
-    if(simplified[0].toLowerCase() in commands) {
-        var command = commands[simplified[0].toLowerCase()];
+    if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(1) in commands) {
+        var command = commands[simplified[0].toLowerCase().substring(1)];
         if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
     }else if(findUrls(message).length > 0) {
