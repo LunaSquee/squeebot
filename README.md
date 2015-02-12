@@ -1,6 +1,6 @@
 # Squeebot
 
-This is a [node.js](http://nodejs.org/) powered IRC bot made by LunaSquee and djazz
+This is a [node.js](http://nodejs.org/) powered IRC bot made by [LunaSquee](https://github.com/LunaSquee) and [djazz](https://github.com/daniel-j)
 
 ### Getting started
 1. Clone this repo
@@ -9,7 +9,7 @@ This is a [node.js](http://nodejs.org/) powered IRC bot made by LunaSquee and dj
 4. Run the bot `npm start`
 
 ### Requirements
-You must make a file called "settings.json" that has your bot's username and password and some other settings.
+You must create a file called `settings.json` that has your bot's nickname, password and some other settings.
 
 Template:
 ```
@@ -28,3 +28,7 @@ Template:
 ```
 
 **Leave irc password as null if no password.**
+
+### IRC Relay Server
+This bot also provides a relay that outputs the messages sent to connected channels. This feature was designed for [MC-Squeebot](https://github.com/LunaSquee/MC-Squeebot) to post irc messages into the Minecraft chat.
+To enable the relay you must set `enableRelay` to true in the settings. You can see how to use it in the MC-Squeebot code.

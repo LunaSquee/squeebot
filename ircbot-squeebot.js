@@ -32,7 +32,7 @@ var rules = {"#bronytalk":["No spam of any kind.", "No IRC bots (unless said oth
             "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]}
 
 // This is the list of all your commands.
-// "!command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
+// "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
     "commands":{"action":(function(simplified, nick, chan, message, target) {
         listCommands(target, nick)
@@ -59,16 +59,6 @@ var commands = {
     "infoc":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
     }), "description":"- Channel Information"},
-    
-    "nicks":{"action":(function(simplified, nick, chan, message, target) {
-        var testing = [];
-        var channel = chan.toLowerCase();
-        for(var key in nicks[channel]) {
-            var mode = iconvert.modeToText(nicks[channel][key]);
-            testing.push(key+" - "+mode);
-        }
-        sendPM(target, nick+": "+testing.join(", "));
-    })},
     
     "rules":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
@@ -197,6 +187,24 @@ var commands = {
     }),"description":"s<Season> e<Episode Number> - Open a pony episode"}
 };
 
+// PM-based commands, like server services have.
+var pmcommands = {
+    "nicks":{"action":(function(simplified, nick, chan, message) {
+        if(!chan) {
+            sendPM(nick, NICK+" couldn't find that channel. Make sure "+NICK+" is on the channel and the channel is valid.");
+            return;
+        }
+        
+        var testing = [];
+        var channel = chan.toLowerCase();
+        for(var key in nicks[channel]) {
+            var mode = iconvert.modeToText(nicks[channel][key]);
+            testing.push(key+" - "+mode);
+        }
+        sendPM(nick, nick+": "+testing.join(", "));
+    })}
+};
+
 /*
     ===================
     NICKNAME UTILITIES!
@@ -291,6 +299,18 @@ function ILeftAChannel(channel) {
         delete nicks[channel.toLowerCase()];
     }
 }
+
+iconvert.isChannelOP = (function(username, channel) {
+    if(channel in nicks) {
+        var chanobj = nicks[channel];
+        if(username in chanobj) {
+            if(chanobj[username] === "q" || chanobj[username] === "a" || chanobj[username] === "o") {
+                return true;
+            }
+            return false;
+        }
+    }
+});
 
 iconvert.prefixToMode = (function(prefix) {
     var mode = "";
@@ -604,9 +624,15 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                 }))
             }
         }
+    }else if(isPM && simplified[0] && simplified[0] in pmcommands) {
+        var cmd = pmcommands[simplified[0].toLowerCase()];
+        if("action" in cmd) {
+            var cmdChan = (simplified[1] ? (simplified[1].toLowerCase() in nicks ? simplified[1] : null) : null);
+            cmd.action(simplified, nick, cmdChan, message);
+        }
     }else if(isMentioned) {
         sendPM(target, nick+": Hello there!");
-    } 
+    }
 }
 
 // Relays irc messages to clients
@@ -696,7 +722,6 @@ function ircRelayServer() {
 //*******************************************************************************************************
 // This is where the magic happens
 //*******************************************************************************************************
-
 
 var bot = new irc.Client(SERVER, NICK, {
     channels: [CHANNEL],
