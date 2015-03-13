@@ -24,7 +24,7 @@ var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
 // Episode countdown
-var airDate = Date.UTC(2013, 11-1, 23, 14, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
+var airDate = Date.UTC(2015, 4-1, 4, 16, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
 // Rules for individual channels.
@@ -113,9 +113,9 @@ var commands = {
             var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
         } while (timeLeft === 0 && counter < 26);
         if (counter === 26) {
-            sendPM(target, "Season 4 is over :(");
+            sendPM(target, "Season 5 is over :(");
         } else {
-            sendPM(target, "Next Season 4 episode airs in %s", readableTime(timeLeft, true));
+            sendPM(target, "Next Season 5 episode airs in %s", readableTime(timeLeft, true));
         }
     }),"description":"- Time left until next pony episode."},
     
@@ -185,24 +185,6 @@ var commands = {
             sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
         }
     }),"description":"s<Season> e<Episode Number> - Open a pony episode"}
-};
-
-// PM-based commands, like server services have.
-var pmcommands = {
-    "nicks":{"action":(function(simplified, nick, chan, message) {
-        if(!chan) {
-            sendPM(nick, NICK+" couldn't find that channel. Make sure "+NICK+" is on the channel and the channel is valid.");
-            return;
-        }
-        
-        var testing = [];
-        var channel = chan.toLowerCase();
-        for(var key in nicks[channel]) {
-            var mode = iconvert.modeToText(nicks[channel][key]);
-            testing.push(key+" - "+mode);
-        }
-        sendPM(nick, nick+": "+testing.join(", "));
-    })}
 };
 
 /*
@@ -623,12 +605,6 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                     sendPM(target, "Dailymotion video \""+data.title+"\" Uploaded by \""+data["owner.screenname"]+"\"");
                 }))
             }
-        }
-    }else if(isPM && simplified[0] && simplified[0] in pmcommands) {
-        var cmd = pmcommands[simplified[0].toLowerCase()];
-        if("action" in cmd) {
-            var cmdChan = (simplified[1] ? (simplified[1].toLowerCase() in nicks ? simplified[1] : null) : null);
-            cmd.action(simplified, nick, cmdChan, message);
         }
     }else if(isMentioned) {
         sendPM(target, nick+": Hello there!");
