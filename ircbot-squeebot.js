@@ -24,7 +24,7 @@ var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
 // Episode countdown
-var airDate = Date.UTC(2015, 4-1, 4, 16, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
+var airDate = Date.UTC(2015, 4-1, 4, 15, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
 // Rules for individual channels.
@@ -115,7 +115,7 @@ var commands = {
         if (counter === 26) {
             sendPM(target, "Season 5 is over :(");
         } else {
-            sendPM(target, "Next Season 5 episode airs in %s", readableTime(timeLeft, true));
+            sendPM(target, (counter===1?"First":"Next")+" Season 5 episode airs in %s", readableTime(timeLeft, true));
         }
     }),"description":"- Time left until next pony episode."},
     
