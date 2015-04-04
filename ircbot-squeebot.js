@@ -669,7 +669,6 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
             var det = link.match("/video/([^&#]*)")[1];
             if(det) {
                 dailymotion(det, (function(data) {
-                    console.log(data);
                     sendPM(target, "\u000309Dailymotion \u000312\""+data.title+"\" \u000309Views: \u000312"+data.views_total.toString().addCommas()+" \u000309Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000309By \u000312\""+data["owner.screenname"]+"\"");
                 }))
             }
