@@ -5,6 +5,7 @@
 // Modules
 var net = require('net');
 var http = require('http');
+var https = require('https');
 var irc = require('irc');
 var colors = require('colors');
 var util = require('util');
@@ -370,6 +371,41 @@ iconvert.modeToText = (function(mode) {
 });
 /*
     End of nick utils.
+    Misc. Utilities
+*/
+
+String.prototype.toHHMMSS = function () {
+    var sec_num = parseInt(this, 10); // don't forget the second param
+    var hours   = Math.floor(sec_num / 3600);
+    var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
+    var seconds = sec_num - (hours * 3600) - (minutes * 60);
+
+    if (hours   < 10) {hours   = "0"+hours;}
+    if (minutes < 10) {minutes = "0"+minutes;}
+    if (seconds < 10) {seconds = "0"+seconds;}
+    var time = '';
+    if(hours > 0)
+        time = hours+':'+minutes+':'+seconds;
+    else
+        time = minutes+':'+seconds;
+    return time;
+}
+
+String.prototype.addCommas = function() {
+    var nStr = this;
+	nStr += '';
+	var x = nStr.split('.');
+	var x1 = x[0];
+	var x2 = x.length > 1 ? '.' + x[1] : '';
+	var rgx = /(\d+)(\d{3})/;
+	while (rgx.test(x1)) {
+		x1 = x1.replace(rgx, '$1' + ',' + '$2');
+	}
+	return x1 + x2;
+}
+
+/*
+    End of Misc. Utils.
 */
 
 // List all commands that have a description set
@@ -419,6 +455,25 @@ function listRulesForChannel(onChannel) {
 // Grab JSON from an url 
 function JSONGrabber(url, callback) {
     http.get(url, function(res){
+        var data = '';
+
+        res.on('data', function (chunk){
+            data += chunk;
+        });
+
+        res.on('end',function(){
+            var obj = JSON.parse(data);
+            callback(true, obj);
+        })
+
+    }).on('error', function(e) {
+        callback(false, e.message);
+    });
+}
+
+// Grab JSON from an url (HTTPS)
+function JSONGrabberHTTPS(url, callback) {
+    https.get(url, function(res){
         var data = '';
 
         res.on('data', function (chunk){
@@ -535,7 +590,7 @@ function getGameInfo(game, host, callback, additional) {
 
 // Dailymotion video puller
 function dailymotion(id, callback) {
-    JSONGrabber("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname", function(success, content) {
+    JSONGrabberHTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
         if(success) {
             callback(content);
         }
@@ -591,18 +646,31 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
         if(link.indexOf("youtu.be") !== -1) {
         var det = link.substring(link.indexOf('.be/')+4);
             if(det) {
-                youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}});
+                youtube.video(det).details(function(ne, tw) { 
+                    if( ne instanceof Error ) { 
+                        mylog("Error in getting youtube url!"); 
+                    } else { 
+                        sendPM(target, "You\u000305Tube \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                    }
+                });
             }
         } else if(link.indexOf("youtube.com") !== -1) {
         var det = link.match("[\\?&]v=([^&#]*)")[1];
             if(det) {
-            youtube.video(det).details(function(ne, tw) { if( ne instanceof Error ) { mylog("Error in getting youtube url!") } else { sendPM(target, "YouTube video \""+tw.title+"\" Uploaded by \""+tw.uploader+"\" Views: "+tw.viewCount);}}); 
+                youtube.video(det).details(function(ne, tw) { 
+                    if( ne instanceof Error ) { 
+                        mylog("Error in getting youtube url!"); 
+                    } else { 
+                        sendPM(target, "You\u000305Tube \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                    }
+                });
             }
         } else if(link.indexOf("dailymotion.com/video/") !== -1) {
             var det = link.match("/video/([^&#]*)")[1];
             if(det) {
                 dailymotion(det, (function(data) {
-                    sendPM(target, "Dailymotion video \""+data.title+"\" Uploaded by \""+data["owner.screenname"]+"\"");
+                    console.log(data);
+                    sendPM(target, "\u000309Dailymotion \u000312\""+data.title+"\" \u000309Views: \u000312"+data.views_total.toString().addCommas()+" \u000309Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000309By \u000312\""+data["owner.screenname"]+"\"");
                 }))
             }
         }
