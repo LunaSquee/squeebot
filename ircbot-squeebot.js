@@ -12,6 +12,7 @@ var util = require('util');
 var readline = require('readline');
 var youtube = require('youtube-feeds');
 var gamedig = require('gamedig');
+var fs = require('fs');
 var events = require("events");
 var emitter = new events.EventEmitter();
 var settings = require(__dirname+"/settings.json");
@@ -28,14 +29,15 @@ var PREFIX = settings.prefix;       // The prefix of commands
 var airDate = Date.UTC(2015, 4-1, 4, 15, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
-// Rules for individual channels.
-var rules = {"#bronytalk":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."],
-            "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]}
-
-// Information for individual channels.
-var infoc = {"#bronytalk":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio",
-            "#parasprite":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio"}
-
+// rules/infoc: Rules and information for individual channels.
+// botops: Bot operators (soon to be implementing)
+var p_vars = {
+    rules:{"#bronytalk":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."],
+            "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]},
+    infoc:{"#bronytalk":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio",
+            "#parasprite":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio"},
+    botops:{}
+}
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
@@ -65,9 +67,14 @@ var commands = {
         if(pm) {
             sendPM(target, "This command can only be executed in a channel.");
         } else {
-            if(chan.toLowerCase() in infoc) {
-                sendPM(target, nick+": "+infoc[chan.toLowerCase()]);
+            var channel = chan.toLowerCase();
+            if("infoc" in p_vars) {
+                if(channel in p_vars.infoc) {
+                    sendPM(target, nick+": "+p_vars.infoc[channel]);
+                    return
+                }
             }
+            sendPM(target, "No information to display for "+chan);
         }
     }), "description":"- Channel Information"},
     
@@ -75,14 +82,25 @@ var commands = {
         if(pm) {
             sendPM(target, "This command can only be executed in a channel.");
         } else {
-            listRulesForChannel(chan);
+            var channel = chan.toLowerCase();
+            if("rules" in p_vars) {
+                if(channel in p_vars.rules) {
+                    sendPM(channel, "Channel Rules of "+chan+": ");
+                    var rls = p_vars.rules[channel];
+                    rls.forEach(function(e) {
+                        sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
+                    });
+                    return;
+                }
+            }
+            sendPM(target, "No rules to display for "+chan);
         }
     }), "description":"- Channel Rules"},
 
     "np":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000309Now playing: \u000312"+d+" \u000309Listeners: \u000312"+e+" \u000309Click here to tune in: \u000312http://radio.djazz.se/")
+                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/")
             } else { 
                 sendPM(target, d)
             }
@@ -92,7 +110,7 @@ var commands = {
     "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000309Now playing: \u000312"+d+" \u000309Listeners: \u000312"+e+" \u000309Click here to tune in: \u000312http://radio.djazz.se/")
+                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/")
             } else { 
                 sendPM(target, d)
             }
@@ -113,7 +131,7 @@ var commands = {
     
     "viewers":{"action":(function(simplified, nick, chan, message, target) {
         livestreamViewerCount((function(r) { 
-            sendPM(target, r+" \u000309Livestream: \u000312http://djazz.se/live/")
+            sendPM(target, r+" \u000303Livestream: \u000312http://djazz.se/live/")
         }))
     }),"description":"- Number of people watching djazz'es livestream"},
     
@@ -174,7 +192,7 @@ var commands = {
         }
         
         if(simplified[1] === "download") {
-            sendPM(target, "\u000309[Mumble] Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
+            sendPM(target, "\u000303[Mumble] Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
             return;
         }
         
@@ -455,18 +473,6 @@ function sendWithDelay(messages, target, time) {
     sendMessageDelayed()
 }
 
-// Send a list of rules to a channel.
-function listRulesForChannel(onChannel) {
-    var channel = onChannel.toLowerCase();
-    if(channel in rules) {
-        sendPM(channel, "Channel Rules of "+onChannel+": ");
-        var rls = rules[channel];
-        rls.forEach(function(e) {
-            sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
-        });
-    }
-}
-
 // Grab JSON from an url 
 function JSONGrabber(url, callback) {
     http.get(url, function(res){
@@ -546,9 +552,9 @@ function getGameInfo(game, host, callback, additional) {
                 switch(game) {
                     case "tf2":
                         if(additional) {
-                            callback(null, "\u000309[Team Fortress 2]\u000f " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
+                            callback(null, "\u000303[Team Fortress 2]\u000f " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
                         } else {
-                            callback(null, "\u000309[Team Fortress 2] IP: \u000312"+host+" \u000309MOTD: \u000312\""+state.name+"\" \u000309Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
+                            callback(null, "\u000303[Team Fortress 2] IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
                         }
                         break;
                     case "minecraft":
@@ -558,12 +564,12 @@ function getGameInfo(game, host, callback, additional) {
                                 state.players.forEach(function(t) {
                                     players.push(t.name);
                                 });
-                                callback(null, "\u000309[Minecraft] Players:\u000f "+players.join(", "));
+                                callback(null, "\u000303[Minecraft] Players:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "\u000309[Minecraft] \u000304No players");
+                                callback(null, "\u000303[Minecraft] \u000304No players");
                             }
                         } else {
-                            callback(null, "\u000309[Minecraft] IP: \u000312"+host+" \u000309MOTD: \u000312\""+state.name+"\" \u000309Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
+                            callback(null, "\u000303[Minecraft] IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
                         }
                         break;
                     case "mumble":
@@ -589,12 +595,12 @@ function getGameInfo(game, host, callback, additional) {
                                     }
                                     players.push(o);
                                 });
-                                callback(null, "\u000309[Mumble] Users:\u000f "+players.join(", "));
+                                callback(null, "\u000303[Mumble] Users:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "\u000309[Mumble] \u000304No users ");
+                                callback(null, "\u000303[Mumble] \u000304No users ");
                             }
                         } else {
-                            callback(null, "\u000309[Mumble] Address: \u000312"+host+" \u000309Users online: \u000312"+state.players.length);
+                            callback(null, "\u000303[Mumble] Address: \u000312"+host+" \u000303Users online: \u000312"+state.players.length);
                         }
                         break;
                 };
@@ -618,7 +624,7 @@ function livestreamViewerCount(callback) {
         if(success) {
             var view = content.viewcount;
             if(view!=-1) {
-                callback("\u000309Viewers: \u000311"+view);
+                callback("\u000303Viewers: \u000311"+view);
             } else {
                 callback("\u000304The livestream is offline");
             }
@@ -665,7 +671,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                     if( ne instanceof Error ) { 
                         mylog("Error in getting youtube url!"); 
                     } else { 
-                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000303Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000303Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000303By \u000312\""+tw.uploader+"\"");
                     }
                 });
             }
@@ -676,7 +682,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                     if( ne instanceof Error ) { 
                         mylog("Error in getting youtube url!"); 
                     } else { 
-                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000303Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000303Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000303By \u000312\""+tw.uploader+"\"");
                     }
                 });
             }
@@ -684,7 +690,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
             var det = link.match("/video/([^&#]*)")[1];
             if(det) {
                 dailymotion(det, (function(data) {
-                    sendPM(target, "\u0002\u000309Dailymotion\u000f \u000312\""+data.title+"\" \u000309Views: \u000312"+data.views_total.toString().addCommas()+" \u000309Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000309By \u000312\""+data["owner.screenname"]+"\"");
+                    sendPM(target, "\u0002\u000303Dailymotion\u000f \u000312\""+data.title+"\" \u000303Views: \u000312"+data.views_total.toString().addCommas()+" \u000303Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000303By \u000312\""+data["owner.screenname"]+"\"");
                 }))
             }
         }
@@ -774,6 +780,29 @@ function ircRelayServer() {
     });
     server.listen(settings.relayPort, function () {
         info('RELAY: Relay server listening on port %d', settings.relayPort);
+    });
+}
+
+// Save variables of p_vars
+function p_vars_save() {
+    var json_en = JSON.stringify(p_vars);
+    if(json_en) {
+        fs.writeFile('savedvars.json', json_en, function (err) {
+          if (err) {
+            console.log(err);
+            return;
+          }
+          mylog('Variables object saved.');
+        });
+    }
+}
+
+// Load variables of p_vars
+function p_vars_load() {
+    fs.readFile('savedvars.json', 'utf8', function (err, data) {
+      if (err) return;
+      p_vars = JSON.parse(data);
+      mylog('Variables object loaded.');
     });
 }
 
@@ -902,6 +931,15 @@ rl.on('line', function (line) {
     } else if (line.indexOf('/join ') === 0) {
         var chan = line.substr(6);
         bot.join(chan);
+    } else if (line.indexOf('/vars ') === 0) {
+        var c = line.substr(6);
+        if(c!=null && c!="") {
+            if(c=="save"){
+                p_vars_save();
+            }else if(c=="load"){
+                p_vars_load();
+            }
+        }
     } else if (line.indexOf('/part ') === 0) {
         var chan = line.substr(6);
         bot.part(chan, NICK+" goes bye bye from this channel.");
