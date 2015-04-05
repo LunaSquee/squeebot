@@ -32,6 +32,10 @@ var week = 7*24*60*60*1000;
 var rules = {"#bronytalk":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."],
             "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]}
 
+// Information for individual channels.
+var infoc = {"#bronytalk":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio",
+            "#parasprite":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio"}
+
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
@@ -57,8 +61,14 @@ var commands = {
         }
     }), "description":"<command> - Show command description"},
     
-    "infoc":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio");
+    "infoc":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
+        if(pm) {
+            sendPM(target, "This command can only be executed in a channel.");
+        } else {
+            if(chan.toLowerCase() in infoc) {
+                sendPM(target, nick+": "+infoc[chan.toLowerCase()]);
+            }
+        }
     }), "description":"- Channel Information"},
     
     "rules":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
@@ -68,11 +78,11 @@ var commands = {
             listRulesForChannel(chan);
         }
     }), "description":"- Channel Rules"},
-    
+
     "np":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
+                sendPM(target, "\u000309Now playing: \u000312"+d+" \u000309Listeners: \u000312"+e+" \u000309Click here to tune in: \u000312http://radio.djazz.se/")
             } else { 
                 sendPM(target, d)
             }
@@ -82,7 +92,7 @@ var commands = {
     "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "Now playing: "+d+" | Listeners: "+e+" | Click here to tune in: http://radio.djazz.se/")
+                sendPM(target, "\u000309Now playing: \u000312"+d+" \u000309Listeners: \u000312"+e+" \u000309Click here to tune in: \u000312http://radio.djazz.se/")
             } else { 
                 sendPM(target, d)
             }
@@ -103,7 +113,7 @@ var commands = {
     
     "viewers":{"action":(function(simplified, nick, chan, message, target) {
         livestreamViewerCount((function(r) { 
-            sendPM(target, r+" | Livestream: http://djazz.se/live/")
+            sendPM(target, r+" \u000309Livestream: \u000312http://djazz.se/live/")
         }))
     }),"description":"- Number of people watching djazz'es livestream"},
     
@@ -162,7 +172,12 @@ var commands = {
         if(simplified[1] === "users") {
             requsers = true;
         }
-
+        
+        if(simplified[1] === "download") {
+            sendPM(target, "\u000309[Mumble] Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
+            return;
+        }
+        
         getGameInfo("mumble", "mumble.djazz.se", function(err, msg) {
             if(err) {
                 sendPM(target, err);
@@ -170,7 +185,7 @@ var commands = {
             }
             sendPM(target, msg);
         }, requsers);
-    }), "description":"[users] - Information about our Mumble Server"},
+    }), "description":"[users/download] - Information about our Mumble Server"},
     
     "episode":{"action":(function(simplified, nick, chan, message, target) {
         var param = simplified[1]; 
@@ -180,10 +195,10 @@ var commands = {
                 var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1]; 
                 sendPM(target, nick+": Watch the episode you requested here: "+link); 
             } else { 
-                sendPM(target, irc.colors.wrap("dark_red",nick+": Correct usage !ep s[season number]e[episode number]"));
+                sendPM(target, irc.colors.wrap("light_red",nick+": Correct usage !ep s[season number]e[episode number]"));
             }
         } else {
-            sendPM(target, irc.colors.wrap("dark_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
+            sendPM(target, irc.colors.wrap("light_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
         }
     }),"description":"s<Season> e<Episode Number> - Open a pony episode"}
 };
@@ -526,14 +541,14 @@ function getGameInfo(game, host, callback, additional) {
         host: host
     },
         function(state) {
-            if(state.error) callback("Server is offline!", null);
+            if(state.error) callback("\u000304Server is offline!", null);
             else {
                 switch(game) {
                     case "tf2":
                         if(additional) {
-                            callback(null, "[Team Fortress 2] " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
+                            callback(null, "\u000309[Team Fortress 2]\u000f " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
                         } else {
-                            callback(null, "[Team Fortress 2] IP: "+host+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.maxplayers);
+                            callback(null, "\u000309[Team Fortress 2] IP: \u000312"+host+" \u000309MOTD: \u000312\""+state.name+"\" \u000309Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
                         }
                         break;
                     case "minecraft":
@@ -543,12 +558,12 @@ function getGameInfo(game, host, callback, additional) {
                                 state.players.forEach(function(t) {
                                     players.push(t.name);
                                 });
-                                callback(null, "[Minecraft] Players: "+players.join(", "));
+                                callback(null, "\u000309[Minecraft] Players:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "[Minecraft] No players");
+                                callback(null, "\u000309[Minecraft] \u000304No players");
                             }
                         } else {
-                            callback(null, "[Minecraft] IP: "+host+" MOTD: \""+state.name+"\" Players: "+state.raw.numplayers+"/"+state.raw.maxplayers);
+                            callback(null, "\u000309[Minecraft] IP: \u000312"+host+" \u000309MOTD: \u000312\""+state.name+"\" \u000309Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
                         }
                         break;
                     case "mumble":
@@ -574,12 +589,12 @@ function getGameInfo(game, host, callback, additional) {
                                     }
                                     players.push(o);
                                 });
-                                callback(null, "[Mumble] Users: "+players.join(", "));
+                                callback(null, "\u000309[Mumble] Users:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "[Mumble] No users ");
+                                callback(null, "\u000309[Mumble] \u000304No users ");
                             }
                         } else {
-                            callback(null, "[Mumble server] IP: "+host+" Users online: "+state.players.length);
+                            callback(null, "\u000309[Mumble] Address: \u000312"+host+" \u000309Users online: \u000312"+state.players.length);
                         }
                         break;
                 };
@@ -603,12 +618,12 @@ function livestreamViewerCount(callback) {
         if(success) {
             var view = content.viewcount;
             if(view!=-1) {
-                callback("Viewers: "+view);
+                callback("\u000309Viewers: \u000311"+view);
             } else {
-                callback("The livestream is offline.");
+                callback("\u000304The livestream is offline");
             }
         } else {
-            callback("The livestream is offline.");
+            callback("\u000304The livestream is offline");
         }
     });
 }
@@ -650,7 +665,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                     if( ne instanceof Error ) { 
                         mylog("Error in getting youtube url!"); 
                     } else { 
-                        sendPM(target, "You\u000305Tube \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
                     }
                 });
             }
@@ -661,7 +676,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                     if( ne instanceof Error ) { 
                         mylog("Error in getting youtube url!"); 
                     } else { 
-                        sendPM(target, "You\u000305Tube \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
+                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000309Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000309Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000309By \u000312\""+tw.uploader+"\"");
                     }
                 });
             }
@@ -669,7 +684,7 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
             var det = link.match("/video/([^&#]*)")[1];
             if(det) {
                 dailymotion(det, (function(data) {
-                    sendPM(target, "\u000309Dailymotion \u000312\""+data.title+"\" \u000309Views: \u000312"+data.views_total.toString().addCommas()+" \u000309Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000309By \u000312\""+data["owner.screenname"]+"\"");
+                    sendPM(target, "\u0002\u000309Dailymotion\u000f \u000312\""+data.title+"\" \u000309Views: \u000312"+data.views_total.toString().addCommas()+" \u000309Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000309By \u000312\""+data["owner.screenname"]+"\"");
                 }))
             }
         }
