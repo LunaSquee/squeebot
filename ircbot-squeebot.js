@@ -192,7 +192,7 @@ var commands = {
         }
         
         if(simplified[1] === "download") {
-            sendPM(target, "\u000303[Mumble] Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
+            sendPM(target, "\u000310[Mumble] \u000303Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
             return;
         }
         
@@ -552,9 +552,9 @@ function getGameInfo(game, host, callback, additional) {
                 switch(game) {
                     case "tf2":
                         if(additional) {
-                            callback(null, "\u000303[Team Fortress 2]\u000f " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
+                            callback(null, "\u000310[Team Fortress 2]\u000f " + (typeof(additional) === "object" ? state[additional[0]][additional[1]] : state[additional]));
                         } else {
-                            callback(null, "\u000303[Team Fortress 2] IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
+                            callback(null, "\u000310[Team Fortress 2] \u000303IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
                         }
                         break;
                     case "minecraft":
@@ -564,12 +564,12 @@ function getGameInfo(game, host, callback, additional) {
                                 state.players.forEach(function(t) {
                                     players.push(t.name);
                                 });
-                                callback(null, "\u000303[Minecraft] Players:\u000f "+players.join(", "));
+                                callback(null, "\u000310[Minecraft] \u000303Players:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "\u000303[Minecraft] \u000304No players");
+                                callback(null, "\u000310[Minecraft] \u000304No players");
                             }
                         } else {
-                            callback(null, "\u000303[Minecraft] IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
+                            callback(null, "\u000310[Minecraft] \u000303IP: \u000312"+host+" \u000303MOTD: \u000312\""+state.name+"\" \u000303Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
                         }
                         break;
                     case "mumble":
@@ -595,12 +595,12 @@ function getGameInfo(game, host, callback, additional) {
                                     }
                                     players.push(o);
                                 });
-                                callback(null, "\u000303[Mumble] Users:\u000f "+players.join(", "));
+                                callback(null, "\u000310[Mumble] Users:\u000f "+players.join(", "));
                             } else {
-                                callback(null, "\u000303[Mumble] \u000304No users ");
+                                callback(null, "\u000310[Mumble] \u000304No users ");
                             }
                         } else {
-                            callback(null, "\u000303[Mumble] Address: \u000312"+host+" \u000303Users online: \u000312"+state.players.length);
+                            callback(null, "\u000310[Mumble] \u000303Address: \u000312"+host+" \u000303Users online: \u000312"+state.players.length);
                         }
                         break;
                 };
