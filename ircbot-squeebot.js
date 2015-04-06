@@ -26,7 +26,7 @@ var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
 // Episode countdown
-var airDate = Date.UTC(2015, 4-1, 4, 15, 0, 0); // Year, month-1, day, hour, minute, second (UTC)
+var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
 // rules/infoc: Rules and information for individual channels.
@@ -516,7 +516,7 @@ function formatmesg(message) {
     var pass1 = message.match(/#c/g) ? message.replace(/#c/g, '\u0003').replace(/#f/g, "\u000f") + '\u000f' : message;
     var pass2 = pass1.match(/#b/g) ? pass1.replace(/#b/g, '\u0002') : pass1;
     var pass3 = pass2.match(/#u/g) ? pass2.replace(/#u/g, '\u001F') : pass2;
-    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u0014') : pass3;
+    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u0016') : pass3;
 }
 
 // Get current Parasprite Radio song
