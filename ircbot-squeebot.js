@@ -25,7 +25,7 @@ var IDENT = settings.password;      // Password of the bot. Set to null to not u
 var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
-// Episode countdown
+// Episode countdown (!nextep)
 var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
@@ -42,7 +42,7 @@ var p_vars = {
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
     "commands":{"action":(function(simplified, nick, chan, message, target) {
-        listCommands(target, nick)
+        listCommands(nick);
     }), "description":"- All Commands"},
     
     "command":{"action":(function(simplified, nick, chan, message, target) {
@@ -105,7 +105,7 @@ var commands = {
                 sendPM(target, d)
             }
         })
-    }), "description":"- Currently playing song"},
+    }), "description":"- Currently playing song on Parasprite Radio"},
     
     "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
@@ -209,7 +209,7 @@ var commands = {
         var param = simplified[1]; 
         if(param != null) { 
             var epis = param.match(/^s([0-9]+)e([0-9]+)$/i); 
-            if(epis){ 
+            if(epis && epis[2]<=26 && epis[1]<=5){ 
                 var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1]; 
                 sendPM(target, nick+": Watch the episode you requested here: "+link); 
             } else { 
@@ -218,7 +218,7 @@ var commands = {
         } else {
             sendPM(target, irc.colors.wrap("light_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
         }
-    }),"description":"s<Season> e<Episode Number> - Open a pony episode"}
+    }),"description":"s<Season>e<Episode Number> - Open a pony episode"}
 };
 
 /*
@@ -442,7 +442,7 @@ String.prototype.addCommas = function() {
 */
 
 // List all commands that have a description set
-function listCommands(target, nick) {
+function listCommands(nick) {
     var comms = [];
     var listofem = [];
     var variab = false;
@@ -462,15 +462,13 @@ function listCommands(target, nick) {
 }
 
 function sendWithDelay(messages, target, time) {
-    var timeout = time || 1000;
-    var c = 0;
-    function sendMessageDelayed() {
-        sendPM(target, messages[c]);
+    function sendMessageDelayed(c, arri, timeout) {
+        sendPM(target, arri[c]);
         c++;
-        if(messages[c] != null)
-            setTimeout(sendMessageDelayed, timeout);
+        if(arri[c] != null)
+            setTimeout(function() {sendMessageDelayed(c, arri, timeout)}, timeout);
     }
-    sendMessageDelayed()
+    sendMessageDelayed(0, messages, time || 1000);
 }
 
 // Grab JSON from an url 
@@ -516,7 +514,7 @@ function formatmesg(message) {
     var pass1 = message.match(/#c/g) ? message.replace(/#c/g, '\u0003').replace(/#f/g, "\u000f") + '\u000f' : message;
     var pass2 = pass1.match(/#b/g) ? pass1.replace(/#b/g, '\u0002') : pass1;
     var pass3 = pass2.match(/#u/g) ? pass2.replace(/#u/g, '\u001F') : pass2;
-    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u0016') : pass3;
+    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u001D') : pass3;
 }
 
 // Get current Parasprite Radio song
@@ -660,6 +658,10 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
     if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(1) in commands) {
         var command = commands[simplified[0].toLowerCase().substring(1)];
+        if("action" in command)
+            command.action(simplified, nick, chan, message, target, isMentioned, isPM);
+    }else if(isPM && simplified[0].toLowerCase() in commands) {
+        var command = commands[simplified[0].toLowerCase()];
         if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
     }else if(findUrls(message).length > 0) {
@@ -831,10 +833,12 @@ bot.on('topic', function (channel, topic, nick) {
     logTopic(channel, topic, nick);
 });
 bot.on('message', function (from, to, message) {
-    var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-    var isMentioned = simplified.indexOf(NICK) !== -1;
-    logChat(from, to, message, isMentioned);
-    handleMessage(from, to, message, simplified, isMentioned, false);
+	if(to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
+    	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+    	var isMentioned = simplified.indexOf(NICK) !== -1;
+    	logChat(from, to, message, isMentioned);
+    	handleMessage(from, to, message, simplified, isMentioned, false);
+	}
 });
 bot.on('join', function (channel, nick) {
     if (nick === NICK) {
