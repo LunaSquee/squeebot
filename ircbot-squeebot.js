@@ -481,8 +481,12 @@ function JSONGrabber(url, callback) {
         });
 
         res.on('end',function(){
-            var obj = JSON.parse(data);
-            callback(true, obj);
+        	try{
+	            var obj = JSON.parse(data);
+	            callback(true, obj);
+        	}catch(err) {
+        		callback(false, "Parse Failed.");
+        	}
         })
 
     }).on('error', function(e) {
@@ -500,8 +504,12 @@ function JSONGrabberHTTPS(url, callback) {
         });
 
         res.on('end',function(){
-            var obj = JSON.parse(data);
-            callback(true, obj);
+            try{
+	            var obj = JSON.parse(data);
+	            callback(true, obj);
+        	}catch(err) {
+        		callback(false, "Parse Failed.");
+        	}
         })
 
     }).on('error', function(e) {
@@ -521,18 +529,25 @@ function formatmesg(message) {
 function getCurrentSong(callback) {
     JSONGrabber("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
-            if(content.title != null) {
-                var theTitle = new Buffer(content.title, "utf8").toString("utf8");
-                var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
-                if(splitUp.length===2) {
-                    theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
-                }
-                callback(theTitle, content.listeners, true);
+            if(content.listeners != null) {
+	            JSONGrabber("http://djazz.se:1337/api/now/json", function(xe, xt) {
+	            	if(xt.title != null && xe) {
+		                var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
+		                var artist = xt.artist;
+		                if(artist!=null) {
+		                    theTitle=theTitle+" by "+artist;
+		                }
+		                callback(theTitle, content.listeners, true);
+		                return;
+	            	} else {
+	            		callback("Parasprite Radio is offline!", "", false);
+	            	}
+	            });
             } else {
-                callback("Parasprite Radio is offline!", "", false);
+            	callback("Parasprite Radio is offline!", "", false);
             }
         } else {
-            callback("Parasprite Radio is offline!", "", false);
+        	callback("Parasprite Radio is offline!", "", false);
         }
     });
 }
