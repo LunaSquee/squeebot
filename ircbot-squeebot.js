@@ -530,7 +530,7 @@ function getCurrentSong(callback) {
     JSONGrabber("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
             if(content.listeners != null) {
-	            JSONGrabber("http://djazz.se:1337/api/now/json", function(xe, xt) {
+	            JSONGrabber("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
 	            	if(xt.title != null && xe) {
 		                var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
 		                var artist = xt.artist;
