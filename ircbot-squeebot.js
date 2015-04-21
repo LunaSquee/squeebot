@@ -229,7 +229,7 @@ var commands = {
 var nicks = {};
 var iconvert = {};
 
-function INicksGetMode(nickname, onChannel) {
+function getModeOfNick(nickname, onChannel) {
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
         if(nickname in nicks[channel]) {
@@ -238,7 +238,7 @@ function INicksGetMode(nickname, onChannel) {
     }
 }
 
-function IChannelNames(onChannel, namesObj) {
+function setChannelNicks(onChannel, namesObj) {
     var channel = onChannel.toLowerCase();
     var initial = {}
     for(var key in namesObj) {
@@ -248,14 +248,14 @@ function IChannelNames(onChannel, namesObj) {
     nicks[channel] = initial;
 }
 
-function IHandleJoin(nickname, onChannel) {
+function handleChannelJoin(nickname, onChannel) {
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
         nicks[channel][nickname] = "";
     }
 }
 
-function IHandlePart(nickname, onChannel) {
+function handleChannelPart(nickname, onChannel) {
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
         if(nickname in nicks[channel]) {
@@ -264,7 +264,7 @@ function IHandlePart(nickname, onChannel) {
     }
 }
 
-function IHandleQuit(nickname) {
+function handleUserQuit(nickname) {
     for(var key in nicks) {
         var obj = nicks[key];
         if(nickname in obj) {
@@ -273,7 +273,8 @@ function IHandleQuit(nickname) {
     }
 }
 
-function IHandleModeAdded(nickname, mode, onChannel) {
+// +mode
+function handleUserModeP(nickname, mode, onChannel) {
     if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
@@ -287,7 +288,8 @@ function IHandleModeAdded(nickname, mode, onChannel) {
     }
 }
 
-function IHandleModeRemoved(nickname, mode, onChannel) {
+// -mode
+function handleUserModeM(nickname, mode, onChannel) {
     if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
     var channel = onChannel.toLowerCase();
     if(channel in nicks) {
@@ -298,7 +300,7 @@ function IHandleModeRemoved(nickname, mode, onChannel) {
     }
 }
 
-function IHandleNickChange(oldNick, newNick) {
+function handleUserNickChange(oldNick, newNick) {
     emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
     for(var key in nicks) {
         var obj = nicks[key];
@@ -310,13 +312,13 @@ function IHandleNickChange(oldNick, newNick) {
     }
 }
 
-function ILeftAChannel(channel) {
+function handleBotLeft(channel) {
     if(channel.toLowerCase() in nicks) {
         delete nicks[channel.toLowerCase()];
     }
 }
 
-iconvert.isChannelOP = (function(username, channel) {
+function isOpOnChannel(username, channel) {
     if(channel in nicks) {
         var chanobj = nicks[channel];
         if(username in chanobj) {
@@ -326,7 +328,7 @@ iconvert.isChannelOP = (function(username, channel) {
             return false;
         }
     }
-});
+}
 
 iconvert.prefixToMode = (function(prefix) {
     var mode = "";
@@ -472,7 +474,7 @@ function sendWithDelay(messages, target, time) {
 }
 
 // Grab JSON from an url 
-function JSONGrabber(url, callback) {
+function fecthJSON(url, callback) {
     http.get(url, function(res){
         var data = '';
 
@@ -495,7 +497,7 @@ function JSONGrabber(url, callback) {
 }
 
 // Grab JSON from an url (HTTPS)
-function JSONGrabberHTTPS(url, callback) {
+function fecthJSON_HTTPS(url, callback) {
     https.get(url, function(res){
         var data = '';
 
@@ -527,10 +529,10 @@ function formatmesg(message) {
 
 // Get current Parasprite Radio song
 function getCurrentSong(callback) {
-    JSONGrabber("http://radio.djazz.se/icecast.php", function(success, content) {
+    fecthJSON("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
             if(content.listeners != null) {
-	            JSONGrabber("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
+	            fecthJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
 	            	if(xt.title != null && xe) {
 		                var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
 		                var artist = xt.artist;
@@ -624,7 +626,7 @@ function getGameInfo(game, host, callback, additional) {
 
 // Dailymotion video puller
 function dailymotion(id, callback) {
-    JSONGrabberHTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
+    fecthJSON_HTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
         if(success) {
             callback(content);
         }
@@ -633,7 +635,7 @@ function dailymotion(id, callback) {
 
 // Livestream viewers
 function livestreamViewerCount(callback) {
-    JSONGrabber("http://djazz.se/live/info.php", function(success, content) {
+    fecthJSON("http://djazz.se/live/info.php", function(success, content) {
         if(success) {
             var view = content.viewcount;
             if(view!=-1) {
@@ -863,40 +865,40 @@ bot.on('join', function (channel, nick) {
     } else {
         mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
         emitter.emit('newIrcMessage', nick, channel, " has joined ", "JOIN");
-        IHandleJoin(nick, channel);
+        handleChannelJoin(nick, channel);
     }
 });
 bot.on('kick', function (channel, nick, by, reason, message) {
     if (nick === NICK) {
         mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
         info("Rejoining "+channel.bold+" in 5 seconds...");
-        ILeftAChannel(channel);
+        handleBotLeft(channel);
         setTimeout(function () {
             bot.join(channel);
         }, 5*1000);
     } else {
         mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
         emitter.emit('newIrcMessage', nick, channel, " was kicked by "+message.nick+" ("+reason+")", "KICK");
-        IHandlePart(nick, channel);
+        handleChannelPart(nick, channel);
     }
-})
+});
 bot.on('part', function (channel, nick, reason) {
     if (nick !== NICK) {
         mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
         emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
-        IHandlePart(nick, channel);
+        handleChannelPart(nick, channel);
     } else {
         mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
-        ILeftAChannel(channel);
+        handleBotLeft(channel);
     }
 });
 bot.on('quit', function (nick, reason, channels) {
     mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
     emitter.emit('newIrcMessage', nick, "", " has quit ("+reason+")", "QUIT");
-    IHandleQuit(nick);
+    handleUserQuit(nick);
 });
 bot.on('names', function(channel, nicks) {
-    IChannelNames(channel, nicks);
+    setChannelNicks(channel, nicks);
 });
 bot.on('pm', function (nick, message) {
     logPM(nick, message);
@@ -916,12 +918,12 @@ bot.on('raw', function (message) {
     }
 });
 bot.on('+mode', function(channel, by, mode, argument, message) {
-    IHandleModeAdded(argument, mode, channel);
+    handleUserModeP(argument, mode, channel);
 });
 bot.on('-mode', function(channel, by, mode, argument, message) {
-    IHandleModeRemoved(argument, mode, channel);
+    handleUserModeM(argument, mode, channel);
 });
-bot.on('nick', IHandleNickChange);
+bot.on('nick', handleUserNickChange);
 
 var rl = readline.createInterface({
     input: process.stdin,
