@@ -77,7 +77,7 @@ var commands = {
             sendPM(target, "No information to display for "+chan);
         }
     }), "description":"- Channel Information"},
-    
+   
     "rules":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
             sendPM(target, "This command can only be executed in a channel.");
@@ -100,9 +100,9 @@ var commands = {
     "np":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/")
+                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
             } else { 
-                sendPM(target, d)
+                sendPM(target, d);
             }
         })
     }), "description":"- Currently playing song on Parasprite Radio"},
@@ -110,19 +110,19 @@ var commands = {
     "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/")
+                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
             } else { 
-                sendPM(target, d)
+                sendPM(target, d);
             }
         })
     }), "description":"- Tune in to Parasprite Radio"},
     
     "yay":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": http://flutteryay.com")
+        sendPM(target, nick+": http://flutteryay.com");
     })},
     
     "squee":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q")
+        sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
     })},
     
     "hug":{"action":(function(simplified, nick, chan, message, target) {
@@ -474,7 +474,7 @@ function sendWithDelay(messages, target, time) {
 }
 
 // Grab JSON from an url 
-function fecthJSON(url, callback) {
+function fetchJSON(url, callback) {
     http.get(url, function(res){
         var data = '';
 
@@ -497,7 +497,7 @@ function fecthJSON(url, callback) {
 }
 
 // Grab JSON from an url (HTTPS)
-function fecthJSON_HTTPS(url, callback) {
+function fetchJSON_HTTPS(url, callback) {
     https.get(url, function(res){
         var data = '';
 
@@ -529,10 +529,10 @@ function formatmesg(message) {
 
 // Get current Parasprite Radio song
 function getCurrentSong(callback) {
-    fecthJSON("http://radio.djazz.se/icecast.php", function(success, content) {
+    fetchJSON("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
             if(content.listeners != null) {
-	            fecthJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
+	            fetchJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
 	            	if(xt.title != null && xe) {
 		                var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
 		                var artist = xt.artist;
@@ -542,21 +542,21 @@ function getCurrentSong(callback) {
 		                callback(theTitle, content.listeners, true);
 		                return;
 	            	} else {
-	            		callback("Parasprite Radio is offline!", "", false);
+	            		callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
 	            	}
 	            });
             } else {
-            	callback("Parasprite Radio is offline!", "", false);
+            	callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
             }
         } else {
-        	callback("Parasprite Radio is offline!", "", false);
+        	callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
         }
     });
 }
 
 // Gameserver info (This function makes me puke)
 function getGameInfo(game, host, callback, additional) {
-    Gamedig.query(
+    gamedig.query(
     {
         type: game,
         host: host
@@ -626,7 +626,7 @@ function getGameInfo(game, host, callback, additional) {
 
 // Dailymotion video puller
 function dailymotion(id, callback) {
-    fecthJSON_HTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
+    fetchJSON_HTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
         if(success) {
             callback(content);
         }
@@ -635,7 +635,7 @@ function dailymotion(id, callback) {
 
 // Livestream viewers
 function livestreamViewerCount(callback) {
-    fecthJSON("http://djazz.se/live/info.php", function(success, content) {
+    fetchJSON("http://djazz.se/live/info.php", function(success, content) {
         if(success) {
             var view = content.viewcount;
             if(view!=-1) {
