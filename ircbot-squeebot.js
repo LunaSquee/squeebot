@@ -15,16 +15,37 @@ var gamedig = require('gamedig');
 var fs = require('fs');
 var events = require("events");
 var emitter = new events.EventEmitter();
-var settings = require(__dirname+"/settings.json");
+var settings;
+
+//squeebot variables
+var SERVER		// The server we want to connect to
+var PORT		// The connection port which is usually 6667
+var NICK		// The bot's nickname
+var IDENT		// Password of the bot. Set to null to not use password login.
+var REALNAME	// Real name of the bot
+var CHANNEL		// The default channel for the bot
+var PREFIX		// The prefix of commands
+
+//nBot variables
+var nBotPlugin = true;
+var botObj;
+var pluginId;
+var botF;
+var botInstanceSettings;
+var settings;
+var ircChannelUsers;
 
 // Config
-var SERVER = settings.server;       // The server we want to connect to
-var PORT = settings.port || 6667;   // The connection port which is usually 6667
-var NICK = settings.username;       // The bot's nickname
-var IDENT = settings.password;      // Password of the bot. Set to null to not use password login.
-var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
-var CHANNEL = settings.channel;     // The default channel for the bot
-var PREFIX = settings.prefix;       // The prefix of commands
+if (!nBotPlugin) {
+	settings = require(__dirname+"/settings.json")
+	SERVER = settings.server;
+	PORT = settings.port || 6667;
+	NICK = settings.username;
+	IDENT = settings.password;
+	REALNAME = 'LunaSquee\'s bot';
+	CHANNEL = settings.channel;
+	PREFIX = settings.prefix;
+}
 // Episode countdown (!nextep)
 var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
@@ -825,167 +846,171 @@ function p_vars_load() {
     });
 }
 
-//*******************************************************************************************************
-// This is where the magic happens
-//*******************************************************************************************************
-
-var bot = new irc.Client(SERVER, NICK, {
-    channels: [CHANNEL],
-    password: IDENT,
-    realName: REALNAME,
-    port: PORT,
-    //secure: true,
-    //certExpired: true,
-    stripColors: true
-});
-var lasttopic = "";
-var lasttopicnick = "";
-
-bot.on('error', function (message) {
-    info('ERROR: %s: %s', message.command, message.args.join(' '));
-});
-bot.on('topic', function (channel, topic, nick) {
-    lasttopic = topic;
-    lasttopicnick = nick;
-    logTopic(channel, topic, nick);
-});
-bot.on('message', function (from, to, message) {
-	if(to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
-    	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-    	var isMentioned = simplified.indexOf(NICK) !== -1;
-    	logChat(from, to, message, isMentioned);
-    	handleMessage(from, to, message, simplified, isMentioned, false);
-	}
-});
-bot.on('join', function (channel, nick) {
-    if (nick === NICK) {
-        mylog((" --> ".green.bold)+"You joined channel "+channel.bold);
-        rl.setPrompt(util.format("> ".bold.magenta), 2);
-        rl.prompt(true);
-    } else {
-        mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
-        emitter.emit('newIrcMessage', nick, channel, " has joined ", "JOIN");
-        handleChannelJoin(nick, channel);
-    }
-});
-bot.on('kick', function (channel, nick, by, reason, message) {
-    if (nick === NICK) {
-        mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
-        info("Rejoining "+channel.bold+" in 5 seconds...");
-        handleBotLeft(channel);
-        setTimeout(function () {
-            bot.join(channel);
-        }, 5*1000);
-    } else {
-        mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
-        emitter.emit('newIrcMessage', nick, channel, " was kicked by "+message.nick+" ("+reason+")", "KICK");
-        handleChannelPart(nick, channel);
-    }
-});
-bot.on('part', function (channel, nick, reason) {
-    if (nick !== NICK) {
-        mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
-        emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
-        handleChannelPart(nick, channel);
-    } else {
-        mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
-        handleBotLeft(channel);
-    }
-});
-bot.on('quit', function (nick, reason, channels) {
-    mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
-    emitter.emit('newIrcMessage', nick, "", " has quit ("+reason+")", "QUIT");
-    handleUserQuit(nick);
-});
-bot.on('names', function(channel, nicks) {
-    setChannelNicks(channel, nicks);
-});
-bot.on('pm', function (nick, message) {
-    logPM(nick, message);
-    var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-    var isMentioned = simplified.indexOf(NICK) !== -1;
-    handleMessage(nick, "", message, simplified, isMentioned, true);
-});
-bot.on('notice', function (nick, to, text) {
-    //mylog(nick, to, text);
-});
-bot.on('raw', function (message) {
-    if (message.command === 'PRIVMSG' && message.args[1] && message.args[1].indexOf("\u0001ACTION ") === 0) {
-        var action = message.args[1].substr(8);
-        action = action.substring(0, action.length-1);
-        emitter.emit('newIrcMessage', message.nick, message.args[0], action, "ACTION");
-        mylog("* %s".bold+" %s", message.nick, action);
-    }
-});
-bot.on('+mode', function(channel, by, mode, argument, message) {
-    handleUserModeP(argument, mode, channel);
-});
-bot.on('-mode', function(channel, by, mode, argument, message) {
-    handleUserModeM(argument, mode, channel);
-});
-bot.on('nick', handleUserNickChange);
-
-var rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-rl.setPrompt("");
-
-rl.on('line', function (line) {
-
-    if (line === '') {
-        return;
-    }
-    if (line.indexOf('/quit') === 0) {
-        var msg = line.substring(6) || "Quitting...";
-        info("Quitting...");
-        rl.setPrompt("");
-        bot.disconnect(msg, function () {
-            process.exit(0);
-        });
-        return;
-    } else if (line.indexOf('/msg ') === 0) {
-        var split = line.split(" ");
-        var nick = split[1];
-        var msg = split.slice(2).join(" ");
-        sendPM(nick, msg);
-    } else if (line.indexOf('/join ') === 0) {
-        var chan = line.substr(6);
-        bot.join(chan);
-    } else if (line.indexOf('/vars ') === 0) {
-        var c = line.substr(6);
-        if(c!=null && c!="") {
-            if(c=="save"){
-                p_vars_save();
-            }else if(c=="load"){
-                p_vars_load();
-            }
-        }
-    } else if (line.indexOf('/part ') === 0) {
-        var chan = line.substr(6);
-        bot.part(chan, NICK+" goes bye bye from this channel.");
-    } else if (line.indexOf('/me ') === 0) {
-        var msg = line.substr(4);
-        bot.action(CHANNEL, msg);
-    } else if (line === '/topic') {
-        logTopic(CHANNEL, lasttopic, lasttopicnick);
-    } else if (line.indexOf("/") === 0) {
-        info(("Unknown command "+line.substr(1).bold).red);
-    } else {
-        sendChat(formatmesg(line));
-    }
-    rl.prompt(true);
-});
-
-info('Connecting...');
-ircRelayServer();
+if (!nBotPlugin) {
+	//*******************************************************************************************************
+	// This is where the magic happens
+	//*******************************************************************************************************
+	
+	var bot = new irc.Client(SERVER, NICK, {
+	    channels: [CHANNEL],
+	    password: IDENT,
+	    realName: REALNAME,
+	    port: PORT,
+	    //secure: true,
+	    //certExpired: true,
+	    stripColors: true
+	});
+	var lasttopic = "";
+	var lasttopicnick = "";
+	
+	bot.on('error', function (message) {
+	    info('ERROR: %s: %s', message.command, message.args.join(' '));
+	});
+	bot.on('topic', function (channel, topic, nick) {
+	    lasttopic = topic;
+	    lasttopicnick = nick;
+	    logTopic(channel, topic, nick);
+	});
+	bot.on('message', function (from, to, message) {
+		if(to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
+	    	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+	    	var isMentioned = simplified.indexOf(NICK) !== -1;
+	    	logChat(from, to, message, isMentioned);
+	    	handleMessage(from, to, message, simplified, isMentioned, false);
+		}
+	});
+	bot.on('join', function (channel, nick) {
+	    if (nick === NICK) {
+	        mylog((" --> ".green.bold)+"You joined channel "+channel.bold);
+	        rl.setPrompt(util.format("> ".bold.magenta), 2);
+	        rl.prompt(true);
+	    } else {
+	        mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
+	        emitter.emit('newIrcMessage', nick, channel, " has joined ", "JOIN");
+	        handleChannelJoin(nick, channel);
+	    }
+	});
+	bot.on('kick', function (channel, nick, by, reason, message) {
+	    if (nick === NICK) {
+	        mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+	        info("Rejoining "+channel.bold+" in 5 seconds...");
+	        handleBotLeft(channel);
+	        setTimeout(function () {
+	            bot.join(channel);
+	        }, 5*1000);
+	    } else {
+	        mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+	        emitter.emit('newIrcMessage', nick, channel, " was kicked by "+message.nick+" ("+reason+")", "KICK");
+	        handleChannelPart(nick, channel);
+	    }
+	});
+	bot.on('part', function (channel, nick, reason) {
+	    if (nick !== NICK) {
+	        mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
+	        emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
+	        handleChannelPart(nick, channel);
+	    } else {
+	        mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
+	        handleBotLeft(channel);
+	    }
+	});
+	bot.on('quit', function (nick, reason, channels) {
+	    mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
+	    emitter.emit('newIrcMessage', nick, "", " has quit ("+reason+")", "QUIT");
+	    handleUserQuit(nick);
+	});
+	bot.on('names', function(channel, nicks) {
+	    setChannelNicks(channel, nicks);
+	});
+	bot.on('pm', function (nick, message) {
+	    logPM(nick, message);
+	    var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+	    var isMentioned = simplified.indexOf(NICK) !== -1;
+	    handleMessage(nick, "", message, simplified, isMentioned, true);
+	});
+	bot.on('notice', function (nick, to, text) {
+	    //mylog(nick, to, text);
+	});
+	bot.on('raw', function (message) {
+	    if (message.command === 'PRIVMSG' && message.args[1] && message.args[1].indexOf("\u0001ACTION ") === 0) {
+	        var action = message.args[1].substr(8);
+	        action = action.substring(0, action.length-1);
+	        emitter.emit('newIrcMessage', message.nick, message.args[0], action, "ACTION");
+	        mylog("* %s".bold+" %s", message.nick, action);
+	    }
+	});
+	bot.on('+mode', function(channel, by, mode, argument, message) {
+	    handleUserModeP(argument, mode, channel);
+	});
+	bot.on('-mode', function(channel, by, mode, argument, message) {
+	    handleUserModeM(argument, mode, channel);
+	});
+	bot.on('nick', handleUserNickChange);
+	
+	var rl = readline.createInterface({
+	    input: process.stdin,
+	    output: process.stdout
+	});
+	rl.setPrompt("");
+	
+	rl.on('line', function (line) {
+	
+	    if (line === '') {
+	        return;
+	    }
+	    if (line.indexOf('/quit') === 0) {
+	        var msg = line.substring(6) || "Quitting...";
+	        info("Quitting...");
+	        rl.setPrompt("");
+	        bot.disconnect(msg, function () {
+	            process.exit(0);
+	        });
+	        return;
+	    } else if (line.indexOf('/msg ') === 0) {
+	        var split = line.split(" ");
+	        var nick = split[1];
+	        var msg = split.slice(2).join(" ");
+	        sendPM(nick, msg);
+	    } else if (line.indexOf('/join ') === 0) {
+	        var chan = line.substr(6);
+	        bot.join(chan);
+	    } else if (line.indexOf('/vars ') === 0) {
+	        var c = line.substr(6);
+	        if(c!=null && c!="") {
+	            if(c=="save"){
+	                p_vars_save();
+	            }else if(c=="load"){
+	                p_vars_load();
+	            }
+	        }
+	    } else if (line.indexOf('/part ') === 0) {
+	        var chan = line.substr(6);
+	        bot.part(chan, NICK+" goes bye bye from this channel.");
+	    } else if (line.indexOf('/me ') === 0) {
+	        var msg = line.substr(4);
+	        bot.action(CHANNEL, msg);
+	    } else if (line === '/topic') {
+	        logTopic(CHANNEL, lasttopic, lasttopicnick);
+	    } else if (line.indexOf("/") === 0) {
+	        info(("Unknown command "+line.substr(1).bold).red);
+	    } else {
+	        sendChat(formatmesg(line));
+	    }
+	    rl.prompt(true);
+	});
+	
+	info('Connecting...');
+	ircRelayServer();
+}
 
 function mylog() {
-    // rl.pause();
-    rl.output.write('\x1b[2K\r');
-    console.log.apply(console, Array.prototype.slice.call(arguments));
-    // rl.resume();
-    rl._refreshLine();
+	if (!nBotPlugin) {
+		// rl.pause();
+		rl.output.write('\x1b[2K\r');
+		console.log.apply(console, Array.prototype.slice.call(arguments));
+		// rl.resume();
+		rl._refreshLine();
+	}
 }
 
 function info() {
@@ -996,7 +1021,11 @@ function info() {
 function sendChat() {
     var message = util.format.apply(null, arguments);
     logChat(NICK, CHANNEL, message);
-    bot.say(CHANNEL, message);
+	if (!nBotPlugin) {
+		bot.say(CHANNEL, message);
+	} else {
+		botF.ircSendCommandPRIVMSG(message, CHANNEL);
+	}
 }
 function sendPM(target) {
     if (target === CHANNEL) {
@@ -1005,7 +1034,11 @@ function sendPM(target) {
     }
     var message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
     logPM(NICK+" -> "+target, message);
-    bot.say(target, message);
+	if (!nBotPlugin) {
+		bot.say(CHANNEL, message);
+	} else {
+		botF.ircSendCommandPRIVMSG(message, target);
+	}
 }
 function logChat(nick, chan, message, isMentioned) {
     if (isMentioned) {
@@ -1034,4 +1067,123 @@ function readableTime(timems, ignoreMs) {
     else if (time < 3600) return zf(time / 60|0)+"m "+zf(time % 60)+ms+"s";
     else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
     else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
-} 
+}
+
+if (nBotPlugin) {
+	//for nBot
+	var SettingsConstructor = function (modified) {
+		var settings, attrname;
+		if (this!==SettingsConstructor) {
+			settings = {
+				prefix: '!'
+			};
+			for (attrname in modified) {settings[attrname]=modified[attrname];}
+			return settings;
+		}
+	};
+	
+	//reserved functions
+	
+	//handle "botEvent" from bot (botEvent is used for irc related activity)
+	//module.exports.botEvent = function (event) {};
+	
+	//main function called when plugin is loaded
+	module.exports.main = function (passedData) {
+		//update variables
+		botObj = passedData.botObj;
+		pluginId = passedData.id;
+		botF = botObj.publicData.botFunctions;
+		botInstanceSettings = botObj.publicData.settings;
+		settings = botInstanceSettings.pluginsSettings[pluginId];
+		ircChannelUsers = botObj.publicData.ircChannelUsers;
+		
+		//if plugin settings are not defined, define them
+		if (settings === undefined) {
+			settings = new SettingsConstructor();
+			botInstanceSettings.pluginsSettings[pluginId] = settings;
+			botF.botSettingsSave();
+		}
+		
+		NICK = botInstanceSettings.botName;
+		PREFIX = settings.prefix;
+		
+		//add listeners to simpleMsg plugin
+		var simpleMsg = botObj.pluginData.simpleMsg.plugin;
+		simpleMsg.msgListenerAdd(pluginId, 'TOPIC', function (data) {
+		    lasttopic = data.topic;
+		    lasttopicnick = data.nick;
+		    logTopic(data.channel, data.topic, data.nick);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'PRIVMSG', function (data) {
+			var simplified;
+			var isMentioned;
+			if(data.to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
+		    	simplified = data.message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+		    	isMentioned = simplified.indexOf(NICK) !== -1;
+		    	handleMessage(data.nick, data.to, data.message, simplified, isMentioned, false);
+		    } else {
+			    simplified = data.message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+			    isMentioned = simplified.indexOf(NICK) !== -1;
+			    handleMessage(data.nick, "", data.message, simplified, isMentioned, true);
+			}
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'JOIN', function (data) {
+	        emitter.emit('newIrcMessage', data.nick, data.channel, " has joined ", "JOIN");
+	        if (data.nick !== NICK) {
+				handleChannelJoin(data.nick, data.channel);
+			}
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'KICK', function (data) {
+		    if (data.nick === NICK) {
+		        iLeftAChannel(data.channel);
+		    } else {
+		        iHandlePart(data.nick, data.channel);
+		    }
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'PART', function (data) {
+		    if (data.nick !== NICK) {
+		        handleChannelPart(data.nick, data.channel);
+		    } else {
+		        handleBotLeft(data.channel);
+		    }
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'QUIT', function (data) {
+			handleUserQuit(data.nick);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'RPL_NAMREPLY', function (data) {
+			setChannelNicks(data.channel, data.nicks);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'NOTICE', function (data) {
+			//mylog(data.nick, data.to, data.message);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'RAW', function (data) {
+			var nick = data[1].split('!')[0];
+			var args = data[3].split(' ');
+		    if (data[2] === 'PRIVMSG' && args[1] && args[1].indexOf("\u0001ACTION ") === 0) {
+		        var action = args[1].substr(8);
+		        action = action.substring(0, action.length-1);
+		        emitter.emit('newIrcMessage', nick, args[0], action, "ACTION");
+		    }
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, '+MODE', function (data) {
+			handleUserModeP(data.param, data.mode, data.target);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, '-MODE', function (data) {
+			handleUserModeM(data.param, data.mode, data.target);
+		});
+		
+		simpleMsg.msgListenerAdd(pluginId, 'NICK', function (data) {
+			handleUserNickChange(data.nick, data.newnick, data.channels);
+		});
+	};
+}
