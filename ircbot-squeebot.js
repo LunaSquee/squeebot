@@ -36,14 +36,22 @@ var p_vars = {
             "#parasprite":["No spam of any kind.", "No IRC bots (unless said otherwise by ops)", "No insulting others."]},
     infoc:{"#bronytalk":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio",
             "#parasprite":"This IRC channel was created by LunaSquee and djazz. It is the main IRC channel for mlp-episodes site and Parasprite Radio"},
-    botops:{}
+    botops:{"icydiamond":1}
 }
+// The target channel of the bot's input field.
+var chattarget = ""
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
     "commands":{"action":(function(simplified, nick, chan, message, target) {
         listCommands(nick);
     }), "description":"- All Commands"},
+
+    "squeebot":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, "Squeebot is an IRC bot written by LunaSquee and djazz.");
+        if(simplified[1] && simplified[1].toLowerCase()==="source")
+            sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
+    }), "description":"[source] - Squeebot info"},
     
     "command":{"action":(function(simplified, nick, chan, message, target) {
         if(simplified[1]) {
@@ -226,108 +234,34 @@ var commands = {
     NICKNAME UTILITIES!
     ===================    
 */
-var nicks = {};
 var iconvert = {};
 
-function getModeOfNick(nickname, onChannel) {
+function getModeOfNick(username, onChannel) {
     var channel = onChannel.toLowerCase();
-    if(channel in nicks) {
-        if(nickname in nicks[channel]) {
-            return nicks[channel][nickname];
+    var chans = bot.chans;
+    if(channel in chans && "users" in chans[channel]) {
+        if(username in chans[channel]["users"]) {
+            return chans[channel]["users"][username];
         }
-    }
-}
-
-function setChannelNicks(onChannel, namesObj) {
-    var channel = onChannel.toLowerCase();
-    var initial = {}
-    for(var key in namesObj) {
-        var prefix = iconvert.prefixToMode(namesObj[key]);
-        initial[key] = prefix;
-    }
-    nicks[channel] = initial;
-}
-
-function handleChannelJoin(nickname, onChannel) {
-    var channel = onChannel.toLowerCase();
-    if(channel in nicks) {
-        nicks[channel][nickname] = "";
-    }
-}
-
-function handleChannelPart(nickname, onChannel) {
-    var channel = onChannel.toLowerCase();
-    if(channel in nicks) {
-        if(nickname in nicks[channel]) {
-            delete nicks[channel][nickname];
-        }
-    }
-}
-
-function handleUserQuit(nickname) {
-    for(var key in nicks) {
-        var obj = nicks[key];
-        if(nickname in obj) {
-            delete nicks[key][nickname];
-        }
-    }
-}
-
-// +mode
-function handleUserModeP(nickname, mode, onChannel) {
-    if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
-    var channel = onChannel.toLowerCase();
-    if(channel in nicks) {
-        var chan = nicks[channel];
-        if(nickname in chan) {
-            var oldmode = chan[nickname];
-            if(oldmode == "q" && mode == "o") return;
-            if(oldmode == "a" && mode == "o") return;
-            nicks[channel][nickname] = mode;
-        }
-    }
-}
-
-// -mode
-function handleUserModeM(nickname, mode, onChannel) {
-    if(mode!="q" && mode!="a" && mode!="o" && mode!="h" && mode!="v") return;
-    var channel = onChannel.toLowerCase();
-    if(channel in nicks) {
-        var chan = nicks[channel];
-        if(nickname in chan) {
-            nicks[channel][nickname] = "";
-        }
-    }
-}
-
-function handleUserNickChange(oldNick, newNick) {
-    emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
-    for(var key in nicks) {
-        var obj = nicks[key];
-        if(oldNick in obj) {
-            var backupMode = obj[oldNick];
-            delete nicks[key][oldNick];
-            nicks[key][newNick] = backupMode;
-        }
-    }
-}
-
-function handleBotLeft(channel) {
-    if(channel.toLowerCase() in nicks) {
-        delete nicks[channel.toLowerCase()];
     }
 }
 
 function isOpOnChannel(username, channel) {
-    if(channel in nicks) {
-        var chanobj = nicks[channel];
-        if(username in chanobj) {
-            if(chanobj[username] === "q" || chanobj[username] === "a" || chanobj[username] === "o") {
-                return true;
-            }
-            return false;
+    var mode = getModeOfNick(username, channel.toLowerCase());
+    if(mode != null) {
+    	if(mode == "@" || mode == "&" || mode == "~")
+    		return true;
+    }
+    return false;
+}
+
+function isGlobalOp(username) {
+    if("botops" in p_vars) {
+        if(username.toLowerCase() in p_vars.botops) {
+            return true;
         }
     }
+    return false;
 }
 
 iconvert.prefixToMode = (function(prefix) {
@@ -833,6 +767,7 @@ var bot = new irc.Client(SERVER, NICK, {
     channels: [CHANNEL],
     password: IDENT,
     realName: REALNAME,
+    userName: "squeebot",
     port: PORT,
     //secure: true,
     //certExpired: true,
@@ -861,44 +796,49 @@ bot.on('join', function (channel, nick) {
     if (nick === NICK) {
         mylog((" --> ".green.bold)+"You joined channel "+channel.bold);
         rl.setPrompt(util.format("> ".bold.magenta), 2);
+        chattarget = channel.toLowerCase();
         rl.prompt(true);
     } else {
         mylog((" --> ".green.bold)+'%s has joined %s', nick.bold, channel.bold);
         emitter.emit('newIrcMessage', nick, channel, " has joined ", "JOIN");
-        handleChannelJoin(nick, channel);
+//        handleChannelJoin(nick, channel);
     }
 });
 bot.on('kick', function (channel, nick, by, reason, message) {
     if (nick === NICK) {
-        mylog((" <-- ".red.bold)+"You was kicked from %s by %s: %s", channel.bold, message.nick, reason);
+        mylog((" <-- ".red.bold)+"You were kicked from %s by %s: %s", channel.bold, message.nick, reason);
         info("Rejoining "+channel.bold+" in 5 seconds...");
-        handleBotLeft(channel);
+//        handleBotLeft(channel);
         setTimeout(function () {
             bot.join(channel);
         }, 5*1000);
     } else {
         mylog((" <-- ".red.bold)+nick+" was kicked from %s by %s: %s", channel.bold, message.nick, reason);
         emitter.emit('newIrcMessage', nick, channel, " was kicked by "+message.nick+" ("+reason+")", "KICK");
-        handleChannelPart(nick, channel);
+//        handleChannelPart(nick, channel);
     }
 });
 bot.on('part', function (channel, nick, reason) {
     if (nick !== NICK) {
         mylog((" <-- ".red.bold)+'%s has left %s', nick.bold, channel.bold);
         emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
-        handleChannelPart(nick, channel);
     } else {
         mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
-        handleBotLeft(channel);
     }
 });
 bot.on('quit', function (nick, reason, channels) {
     mylog((" <-- ".red.bold)+'%s has quit (%s)', nick.bold, reason);
     emitter.emit('newIrcMessage', nick, "", " has quit ("+reason+")", "QUIT");
-    handleUserQuit(nick);
+});
+bot.on('ctcp', function (from, to, text, type) {
+    mylog(("-> CTCP ".magenta.bold)+'%s | %s said: %s', type.toUpperCase(), from.bold, text);
+});
+bot.on('ctcp-version', function (from, to) {
+    mylog(("-> CTCP ".magenta.bold)+'%s asked for VERSION. Replying', from.bold);
+    bot.ctcp(from, "version", "IRC Bot by LunaSquee. https://github.com/LunaSquee/squeebot");
 });
 bot.on('names', function(channel, nicks) {
-    setChannelNicks(channel, nicks);
+    // Implement all you want. lol
 });
 bot.on('pm', function (nick, message) {
     logPM(nick, message);
@@ -918,12 +858,14 @@ bot.on('raw', function (message) {
     }
 });
 bot.on('+mode', function(channel, by, mode, argument, message) {
-    handleUserModeP(argument, mode, channel);
+    mylog("* MODE +%s %s by %s", mode, argument || channel, by || message.server);
 });
 bot.on('-mode', function(channel, by, mode, argument, message) {
-    handleUserModeM(argument, mode, channel);
+    mylog("* MODE -%s %s by %s", mode, argument || channel, by || message.server);
 });
-bot.on('nick', handleUserNickChange);
+bot.on('nick', function(oldNick, newNick, channels) {
+	emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
+});
 
 var rl = readline.createInterface({
     input: process.stdin,
@@ -951,7 +893,10 @@ rl.on('line', function (line) {
         sendPM(nick, msg);
     } else if (line.indexOf('/join ') === 0) {
         var chan = line.substr(6);
-        bot.join(chan);
+        if(chan!=null)
+            bot.join(chan);
+        else
+            mylog("Not enough arguments for JOIN.");
     } else if (line.indexOf('/vars ') === 0) {
         var c = line.substr(6);
         if(c!=null && c!="") {
@@ -966,15 +911,65 @@ rl.on('line', function (line) {
         bot.part(chan, NICK+" goes bye bye from this channel.");
     } else if (line.indexOf('/me ') === 0) {
         var msg = line.substr(4);
-        bot.action(CHANNEL, msg);
+        if(msg!=null && msg=="")
+            bot.action(CHANNEL, msg);
+        else
+            mylog("Not enough arguments for ACTION.");
     } else if (line === '/topic') {
         logTopic(CHANNEL, lasttopic, lasttopicnick);
+    } else if (line.indexOf('/t') === 0) {
+        var msg = line.split(" ");
+        if(msg[1]!=null) {
+            if(msg[1].toLowerCase() in bot.chans) {
+                chattarget = msg[1].toLowerCase();
+                info("You're now talking to "+chattarget);
+            }
+        } else {
+            mylog("Not enough arguments for target. Usage: /t #channel");
+        }
+    } else if (line.indexOf('/ops') === 0) {
+        var msg = line.split(" ");
+        if(msg[1] == "add" && msg[2]) {
+            if(isGlobalOp(msg[2])) {
+                info(msg[2]+" is already a bot operator!");
+            } else {
+                p_vars.botops[msg[2].toLowerCase()] = 6;
+                info(msg[2]+" is now a bot operator!");
+            }
+        } else if(msg[1] == "del" && msg[2]) {
+            if(isGlobalOp(msg[2].toLowerCase())) {
+                info(msg[2]+" is no longer a bot operator!");
+                delete p_vars.botops[msg[2]];
+            } else {
+                info(msg[2]+" is not a bot operator!");
+            }
+        } else if(msg[1] == "test" && msg[2]) {
+            if(isGlobalOp(msg[2].toLowerCase())) {
+                info(msg[2]+" is a bot operator!");
+            } else {
+                info(msg[2]+" is not a bot operator!");
+            }
+        } else if(msg[1] == "list") {
+            var listof = []
+            for(var y in p_vars.botops) listof.push(y);
+            mylog("* Current bot operators are: "+listof.join(", "));
+        } else {
+            info("Usage: /ops <add/del/list> [nickname]".red);
+        }
     } else if (line.indexOf("/") === 0) {
         info(("Unknown command "+line.substr(1).bold).red);
     } else {
         sendChat(formatmesg(line));
     }
     rl.prompt(true);
+});
+
+rl.on('SIGINT', function() {
+    info("Quitting...");
+    rl.setPrompt("");
+    bot.disconnect("^C received. Bye!", function () {
+        process.exit(0);
+    });
 });
 
 info('Connecting...');
@@ -995,9 +990,10 @@ function info() {
 
 function sendChat() {
     var message = util.format.apply(null, arguments);
-    logChat(NICK, CHANNEL, message);
-    bot.say(CHANNEL, message);
+    logChat(NICK, chattarget, message);
+    bot.say(chattarget, message);
 }
+
 function sendPM(target) {
     if (target === CHANNEL) {
         sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
