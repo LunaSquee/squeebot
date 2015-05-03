@@ -835,7 +835,7 @@ bot.on('ctcp', function (from, to, text, type) {
 });
 bot.on('ctcp-version', function (from, to) {
     mylog(("-> CTCP ".magenta.bold)+'%s asked for VERSION. Replying', from.bold);
-    bot.ctcp(from, "version", "IRC Bot by LunaSquee. https://github.com/LunaSquee/squeebot");
+    bot.ctcp(from, "version", "VERSION IRC Bot by LunaSquee. https://github.com/LunaSquee/squeebot");
 });
 bot.on('names', function(channel, nicks) {
     // Implement all you want. lol
@@ -995,7 +995,7 @@ function sendChat() {
 }
 
 function sendPM(target) {
-    if (target === CHANNEL) {
+    if (target === chattarget) {
         sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
         return;
     }
