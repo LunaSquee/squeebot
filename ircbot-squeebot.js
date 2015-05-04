@@ -43,17 +43,7 @@ var chattarget = ""
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
-    "commands":{"action":(function(simplified, nick, chan, message, target) {
-        listCommands(nick);
-    }), "description":"- All Commands"},
-
-    "squeebot":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, "Squeebot is an IRC bot written by LunaSquee and djazz.");
-        if(simplified[1] && simplified[1].toLowerCase()==="source")
-            sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
-    }), "description":"[source] - Squeebot info"},
-    
-    "command":{"action":(function(simplified, nick, chan, message, target) {
+    "help":{"action":(function(simplified, nick, chan, message, target) {
         if(simplified[1]) {
             var cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]);
             if(cmdName in commands) {
@@ -67,11 +57,21 @@ var commands = {
                 sendPM(target, nick+": That is not a known command!");
             }
         } else {
-            sendPM(target, nick+": Usage: \u0002"+PREFIX+"command\u000f <command>");
+            listCommands(nick, target);
         }
+    }), "description":"[command] - All Commands"},
+
+    "squeebot":{"action":(function(simplified, nick, chan, message, target) {
+        sendPM(target, "Squeebot is an IRC bot written by LunaSquee and djazz.");
+        if(simplified[1] && simplified[1].toLowerCase()==="source")
+            sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
+    }), "description":"[source] - Squeebot info"},
+    
+    "command":{"action":(function(simplified, nick, chan, message, target) {
+        
     }), "description":"<command> - Show command description"},
     
-    "infoc":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
+    "info":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
             sendPM(target, "This command can only be executed in a channel.");
         } else {
@@ -378,13 +378,13 @@ String.prototype.addCommas = function() {
 */
 
 // List all commands that have a description set
-function listCommands(nick) {
+function listCommands(nick, target) {
     var comms = [];
     var listofem = [];
     var variab = false;
     comms.push("*** "+NICK.toUpperCase()+" COMMANDS ***");
     comms.push("All "+NICK+" commands start with a "+PREFIX+" prefix.");
-    comms.push("Type  "+PREFIX+"command <command> for more information on that command.");
+    comms.push("Type  "+PREFIX+"help <command> for more information on that command.");
     for(var command in commands) {
         var obj = commands[command];
         if("description" in obj) {
@@ -393,8 +393,8 @@ function listCommands(nick) {
         }
     }
     comms.push(listofem.join(" "));
-    comms.push("***** End of "+PREFIX+"commands *****");
-    sendWithDelay(comms, nick, 1000);
+    comms.push("***** End of "+PREFIX+"help *****");
+    sendWithDelay(comms, target, 1000);
 }
 
 function sendWithDelay(messages, target, time) {
