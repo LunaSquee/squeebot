@@ -23,7 +23,7 @@ var PORT = settings.port || 6667;   // The connection port which is usually 6667
 var NICK = settings.username;       // The bot's nickname
 var IDENT = settings.password;      // Password of the bot. Set to null to not use password login.
 var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
-var CHANNEL = settings.channel;     // The default channel for the bot
+var CHANNEL = settings.channel;     // The default channel(s) for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
 // Episode countdown (!nextep)
 var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
@@ -66,10 +66,6 @@ var commands = {
         if(simplified[1] && simplified[1].toLowerCase()==="source")
             sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
     }), "description":"[source] - Squeebot info"},
-    
-    "command":{"action":(function(simplified, nick, chan, message, target) {
-        
-    }), "description":"<command> - Show command description"},
     
     "info":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
@@ -764,7 +760,7 @@ function p_vars_load() {
 //*******************************************************************************************************
 
 var bot = new irc.Client(SERVER, NICK, {
-    channels: [CHANNEL],
+    channels: Array.isArray(CHANNEL) ? CHANNEL : [CHANNEL],
     password: IDENT,
     realName: REALNAME,
     userName: "squeebot",
@@ -773,15 +769,14 @@ var bot = new irc.Client(SERVER, NICK, {
     //certExpired: true,
     stripColors: true
 });
-var lasttopic = "";
-var lasttopicnick = "";
+var lasttopic = {};
 
 bot.on('error', function (message) {
     info('ERROR: %s: %s', message.command, message.args.join(' '));
 });
 bot.on('topic', function (channel, topic, nick) {
-    lasttopic = topic;
-    lasttopicnick = nick;
+    channel = channel.toLowerCase();
+    lasttopic[channel] = {"topic":topic, "nick": nick};
     logTopic(channel, topic, nick);
 });
 bot.on('message', function (from, to, message) {
@@ -912,17 +907,20 @@ rl.on('line', function (line) {
     } else if (line.indexOf('/me ') === 0) {
         var msg = line.substr(4);
         if(msg!=null && msg=="")
-            bot.action(CHANNEL, msg);
+            bot.action(chattarget, msg);
         else
             mylog("Not enough arguments for ACTION.");
     } else if (line === '/topic') {
-        logTopic(CHANNEL, lasttopic, lasttopicnick);
+        if(chattarget in lasttopic)
+            logTopic(chattarget, lasttopic[chattarget].topic, lasttopic[chattarget].nick);
     } else if (line.indexOf('/t') === 0) {
         var msg = line.split(" ");
         if(msg[1]!=null) {
             if(msg[1].toLowerCase() in bot.chans) {
                 chattarget = msg[1].toLowerCase();
                 info("You're now talking to "+chattarget);
+            } else {
+                info("You're not connected to "+msg[1]);
             }
         } else {
             mylog("Not enough arguments for target. Usage: /t #channel");
