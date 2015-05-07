@@ -16,6 +16,7 @@ var fs = require('fs');
 var events = require("events");
 var emitter = new events.EventEmitter();
 var settings = require(__dirname+"/settings.json");
+var g_api = settings.googleapikey;
 
 // Config
 var SERVER = settings.server;       // The server we want to connect to
@@ -339,8 +340,8 @@ iconvert.modeToText = (function(mode) {
     Misc. Utilities
 */
 
-String.prototype.toHHMMSS = function () {
-    var sec_num = parseInt(this, 10); // don't forget the second param
+function toHHMMSS(numbr) {
+    var sec_num = parseInt(numbr, 10); // don't forget the second param
     var hours   = Math.floor(sec_num / 3600);
     var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
     var seconds = sec_num - (hours * 3600) - (minutes * 60);
@@ -349,15 +350,14 @@ String.prototype.toHHMMSS = function () {
     if (minutes < 10) {minutes = "0"+minutes;}
     if (seconds < 10) {seconds = "0"+seconds;}
     var time = '';
-    if(hours > 0)
+    if(parseInt(hours) > 0)
         time = hours+':'+minutes+':'+seconds;
     else
         time = minutes+':'+seconds;
     return time;
 }
 
-String.prototype.addCommas = function() {
-    var nStr = this;
+function addCommas(nStr) {
 	nStr += '';
 	var x = nStr.split('.');
 	var x1 = x[0];
@@ -369,9 +369,57 @@ String.prototype.addCommas = function() {
 	return x1 + x2;
 }
 
+// http://stackoverflow.com/a/22149575
+function ytDuration(duration) {
+	var a = duration.match(/\d+/g);
+
+    if (duration.indexOf('M') >= 0 && duration.indexOf('H') == -1 && duration.indexOf('S') == -1) {
+        a = [0, a[0], 0];
+    }
+
+    if (duration.indexOf('H') >= 0 && duration.indexOf('M') == -1) {
+        a = [a[0], 0, a[1]];
+    }
+    if (duration.indexOf('H') >= 0 && duration.indexOf('M') == -1 && duration.indexOf('S') == -1) {
+        a = [a[0], 0, 0];
+    }
+
+    duration = 0;
+
+    if (a.length == 3) {
+        duration = duration + parseInt(a[0]) * 3600;
+        duration = duration + parseInt(a[1]) * 60;
+        duration = duration + parseInt(a[2]);
+    }
+
+    if (a.length == 2) {
+        duration = duration + parseInt(a[0]) * 60;
+        duration = duration + parseInt(a[1]);
+    }
+
+    if (a.length == 1) {
+        duration = duration + parseInt(a[0]);
+    }
+    return toHHMMSS(duration.toString());
+}
+
 /*
     End of Misc. Utils.
 */
+
+/* APIs */
+function getYoutubeFromVideo(id, target) {
+	if(g_api == null) return;
+	var g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+g_api+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
+	fetchJSON_HTTPS(g_api_base, function(success, content) {
+		if(success==false) return;
+		if("items" in content) {
+			var tw = content.items[0];
+			sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.snippet.title+"\" \u000303Views: \u000312"+addCommas(tw.statistics.viewCount.toString())+" \u000303Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString())+" \u000303By \u000312\""+tw.snippet.channelTitle+"\"");
+		}
+	});
+}
+/* END */
 
 // List all commands that have a description set
 function listCommands(nick, target) {
@@ -616,24 +664,12 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
         if(link.indexOf("youtu.be") !== -1) {
         var det = link.substring(link.indexOf('.be/')+4);
             if(det) {
-                youtube.video(det).details(function(ne, tw) { 
-                    if( ne instanceof Error ) { 
-                        mylog("Error in getting youtube url!"); 
-                    } else { 
-                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000303Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000303Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000303By \u000312\""+tw.uploader+"\"");
-                    }
-                });
+                getYoutubeFromVideo(det, target);
             }
         } else if(link.indexOf("youtube.com") !== -1) {
         var det = link.match("[\\?&]v=([^&#]*)")[1];
             if(det) {
-                youtube.video(det).details(function(ne, tw) { 
-                    if( ne instanceof Error ) { 
-                        mylog("Error in getting youtube url!"); 
-                    } else { 
-                        sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.title+"\" \u000303Views: \u000312"+tw.viewCount.toString().addCommas()+" \u000303Duration: \u000312"+tw.duration.toString().toHHMMSS()+" \u000303By \u000312\""+tw.uploader+"\"");
-                    }
-                });
+				getYoutubeFromVideo(det, target);
             }
         } else if(link.indexOf("dailymotion.com/video/") !== -1) {
             var det = link.match("/video/([^&#]*)")[1];
