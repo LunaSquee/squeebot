@@ -312,7 +312,7 @@ function loadModule(mod) {
         _modules[mod] = module;
     } catch(err) {
         mylog("An error occured while trying to load "+mod+"!");
-        console.error(err);
+        console.log(err);
         mylog("Please try reloading it.");
     }
 }
@@ -1204,14 +1204,10 @@ function sendChat() {
     bot.say(chattarget, message);
 }
 
-
-bot.consolePrint = function() {
-    mylog(arguments);
-}
-
-bot.consoleInfo = function() {
-    info(arguments);
-}
+bot.consolePrint = mylog;
+bot.consoleInfo = info;
+bot.isGlobalOp = isGlobalOp;
+bot.isOpOnChannel = isOpOnChannel;
 
 bot.sendPM = function(target) {
     if (target === chattarget) {
