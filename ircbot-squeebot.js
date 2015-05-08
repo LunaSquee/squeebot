@@ -10,13 +10,14 @@ var irc = require('irc');
 var colors = require('colors');
 var util = require('util');
 var readline = require('readline');
-var youtube = require('youtube-feeds');
 var gamedig = require('gamedig');
 var fs = require('fs');
+var path = require('path');
 var events = require("events");
 var emitter = new events.EventEmitter();
-var settings = require(__dirname+"/settings.json");
+var settings = require("./settings.json");
 var g_api = settings.googleapikey;
+var _modules = {};
 
 // Config
 var SERVER = settings.server;       // The server we want to connect to
@@ -50,12 +51,12 @@ var commands = {
             if(cmdName in commands) {
                 var cmdDesc = commands[cmdName].description;
                 if(cmdDesc) {
-                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmdDesc);
+                    bot.sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmdDesc);
                 } else {
-                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f - Undefined command!");
+                    bot.sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f - Undefined command!");
                 }
             } else {
-                sendPM(target, nick+": That is not a known command!");
+                bot.sendPM(target, nick+": That is not a known command!");
             }
         } else {
             listCommands(nick, target);
@@ -63,51 +64,51 @@ var commands = {
     }), "description":"[command] - All Commands"},
 
     "squeebot":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, "Squeebot is an IRC bot written by LunaSquee and djazz.");
+        bot.sendPM(target, "Squeebot is an IRC bot written by LunaSquee and djazz.");
         if(simplified[1] && simplified[1].toLowerCase()==="source")
-            sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
+            bot.sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot");
     }), "description":"[source] - Squeebot info"},
     
     "info":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
-            sendPM(target, "This command can only be executed in a channel.");
+            bot.sendPM(target, "This command can only be executed in a channel.");
         } else {
             var channel = chan.toLowerCase();
             if("infoc" in p_vars) {
                 if(channel in p_vars.infoc) {
-                    sendPM(target, nick+": "+p_vars.infoc[channel]);
+                    bot.sendPM(target, nick+": "+p_vars.infoc[channel]);
                     return
                 }
             }
-            sendPM(target, "No information to display for "+chan);
+            bot.sendPM(target, "No information to display for "+chan);
         }
     }), "description":"- Channel Information"},
    
     "rules":{"action":(function(simplified, nick, chan, message, target, mentioned, pm) {
         if(pm) {
-            sendPM(target, "This command can only be executed in a channel.");
+            bot.sendPM(target, "This command can only be executed in a channel.");
         } else {
             var channel = chan.toLowerCase();
             if("rules" in p_vars) {
                 if(channel in p_vars.rules) {
-                    sendPM(channel, "Channel Rules of "+chan+": ");
+                    bot.sendPM(channel, "Channel Rules of "+chan+": ");
                     var rls = p_vars.rules[channel];
                     rls.forEach(function(e) {
-                        sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
+                        bot.sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
                     });
                     return;
                 }
             }
-            sendPM(target, "No rules to display for "+chan);
+            bot.sendPM(target, "No rules to display for "+chan);
         }
     }), "description":"- Channel Rules"},
 
     "np":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
+                bot.sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
             } else { 
-                sendPM(target, d);
+                bot.sendPM(target, d);
             }
         })
     }), "description":"- Currently playing song on Parasprite Radio"},
@@ -115,28 +116,28 @@ var commands = {
     "radio":{"action":(function(simplified, nick, chan, message, target) {
         getCurrentSong(function(d, e, i) { 
             if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
+                bot.sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
             } else { 
-                sendPM(target, d);
+                bot.sendPM(target, d);
             }
         })
     }), "description":"- Tune in to Parasprite Radio"},
     
     "yay":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": http://flutteryay.com");
+        bot.sendPM(target, nick+": http://flutteryay.com");
     })},
     
     "squee":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
+        bot.sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
     })},
     
     "hug":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, "*Hugs "+nick+"*");
+        bot.sendPM(target, "*Hugs "+nick+"*");
     })},
     
     "viewers":{"action":(function(simplified, nick, chan, message, target) {
         livestreamViewerCount((function(r) { 
-            sendPM(target, r+" \u000303Livestream: \u000312http://djazz.se/live/")
+            bot.sendPM(target, r+" \u000303Livestream: \u000312http://djazz.se/live/")
         }))
     }),"description":"- Number of people watching djazz'es livestream"},
     
@@ -147,14 +148,14 @@ var commands = {
             var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
         } while (timeLeft === 0 && counter < 26);
         if (counter === 26) {
-            sendPM(target, "Season 5 is over :(");
+            bot.sendPM(target, "Season 5 is over :(");
         } else {
-            sendPM(target, (counter===1?"First":"Next")+" Season 5 episode airs in %s", readableTime(timeLeft, true));
+            bot.sendPM(target, (counter===1?"First":"Next")+" Season 5 episode airs in %s", readableTime(timeLeft, true));
         }
     }),"description":"- Time left until next pony episode."},
     
     "episodes":{"action":(function(simplified, nick, chan, message, target) {
-        sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
+        bot.sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
     }),"description":"- List of pony episodes"},
     
     "minecraft":{"action":(function(simplified, nick, chan, message, target) {
@@ -166,10 +167,10 @@ var commands = {
         
         getGameInfo("minecraft", "minecraft.djazz.se", function(err, msg) {
             if(err) { 
-                sendPM(target, err); 
+                bot.sendPM(target, err); 
                 return;
             }
-            sendPM(target, msg); 
+            bot.sendPM(target, msg); 
         }, reqplayers);
     }),"description":"[players] - Information about our Minecraft Server"},
     
@@ -182,10 +183,10 @@ var commands = {
 
         getGameInfo("minecraft", "minecraft.djazz.se", function(err, msg) {
             if(err) { 
-                sendPM(target, err);
+                bot.sendPM(target, err);
                 return;
             }
-            sendPM(target, msg);
+            bot.sendPM(target, msg);
         }, reqplayers);
     })},
 
@@ -197,16 +198,16 @@ var commands = {
         }
         
         if(simplified[1] === "download") {
-            sendPM(target, "\u000310[Mumble] \u000303Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
+            bot.sendPM(target, "\u000310[Mumble] \u000303Download Mumble here: \u000312http://wiki.mumble.info/wiki/Main_Page#Download_Mumble");
             return;
         }
         
         getGameInfo("mumble", "mumble.djazz.se", function(err, msg) {
             if(err) {
-                sendPM(target, err);
+                bot.sendPM(target, err);
                 return;
             }
-            sendPM(target, msg);
+            bot.sendPM(target, msg);
         }, requsers);
     }), "description":"[users/download] - Information about our Mumble Server"},
     
@@ -216,20 +217,169 @@ var commands = {
             var epis = param.match(/^s([0-9]+)e([0-9]+)$/i); 
             if(epis && epis[2]<=26 && epis[1]<=5){ 
                 var link = "http://mlp-episodes.tk/#epi"+epis[2]+"s"+epis[1]; 
-                sendPM(target, nick+": Watch the episode you requested here: "+link); 
+                bot.sendPM(target, nick+": Watch the episode you requested here: "+link); 
             } else { 
-                sendPM(target, irc.colors.wrap("light_red",nick+": Correct usage !ep s[season number]e[episode number]"));
+                bot.sendPM(target, irc.colors.wrap("light_red",nick+": Correct usage !ep s[season number]e[episode number]"));
             }
         } else {
-            sendPM(target, irc.colors.wrap("light_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
+            bot.sendPM(target, irc.colors.wrap("light_red",nick+": Please provide me with episode number and season, for example: !ep s4e4"));
         }
-    }),"description":"s<Season>e<Episode Number> - Open a pony episode"}
+    }),"description":"s<Season>e<Episode Number> - Open a pony episode"},
+
+    "moduleload":{"action":(function(simplified, nick, chan, message, target, m, pm) {
+        if(!isGlobalOp(nick)) {
+            bot.sendPM(target, nick+": You do not have permission to execute this command.");
+            return;
+        }
+        if(simplified[1] == null) {
+            bot.sendPM(target, nick+": Please provide module name.");
+            return;
+        }
+        loadModule(simplified[1]);
+    }),"description":"<module> - Loads a bot module", "oper": 1},
+
+    "moduleunload":{"action":(function(simplified, nick, chan, message, target, m, pm) {
+        if(!isGlobalOp(nick)) {
+            bot.sendPM(target, nick+": You do not have permission to execute this command.");
+            return;
+        }
+        if(simplified[1] == null) {
+            bot.sendPM(target, nick+": Please provide module name.");
+            return;
+        }
+        unloadModule(simplified[1]);
+    }),"description":"<module> - Unloads a bot module", "oper": 1},
+
+    "modulereload":{"action":(function(simplified, nick, chan, message, target, m, pm) {
+        if(!isGlobalOp(nick)) {
+            bot.sendPM(target, nick+": You do not have permission to execute this command.");
+            return;
+        }
+        if(simplified[1] == null) {
+            bot.sendPM(target, nick+": Please provide module name.");
+            return;
+        }
+        reloadModule(simplified[1]);
+    }),"description":"<module> - Reloads a bot module", "oper": 1}
 };
+
+/*
+    =============
+    MODULE SYSTEM
+    =============
+*/
+
+// Load a single module
+function loadModule(mod) {
+    // Check if its already loaded
+    if(mod in _modules) {
+        console.log("This module is already loaded!");
+        return;
+    }
+
+    // Get absolute path for the module
+    var ppath = path.resolve("./modules/"+mod+".js");
+    // Base config object
+    var config = {};
+
+    // Check if the file exists
+    if (!fs.existsSync(ppath)) {
+        console.log("That module doesn't exist!");
+        return;
+    }
+
+    //  Being loading
+    try{
+        // Loads module
+        var module = require(ppath);
+        // Deletes module script from cache (We don't want it to cache modules!)
+        if(require.cache && require.cache[ppath])
+            delete require.cache[ppath];
+
+        // If the require fails, cancel
+        if(!module) {
+            console.log("Loading module "+mod+" failed!");
+            return;
+        }
+        // If the module script exists (Double check!)
+        if(module === _modules[mod])
+            return;
+        // If the module has defined confugration for it in settings, load that in.
+        if(mod in settings.modules)
+            config = settings.modules[mod];
+        // Initiate loading and save it
+        module.load(mod, bot, config);
+        _modules[mod] = module;
+    } catch(err) {
+        mylog("An error occured while trying to load "+mod+"!");
+        console.error(err);
+        mylog("Please try reloading it.");
+    }
+}
+
+// Unload a module
+function unloadModule(mod) {
+    if(!mod in _modules) {
+        console.log("That module doesn't exist!");
+        return;
+    }
+
+    _modules[mod].unload(bot);
+    delete _modules[mod];
+}
+
+// Reload a module
+function reloadModule(mod, bot) {
+    if(!mod in _modules) {
+        console.log("That module doesn't exist!");
+        return;
+    }
+
+    if(mod in _modules)
+        unloadModule(mod);
+    setTimeout(function() {loadModule(mod)}, 500);
+}
+
+// Load a set of modules
+function loadModules(list) {
+    info("Loading modules..");
+    if(!list) {
+        var list = [];
+        for(var i in settings.modules) {
+            var modl = settings.modules[i];
+            if("autorun" in modl && modl.autorun === true)
+                list.push(i);
+        }
+    }
+
+    if(!Array.isArray(list))
+        list = [list];
+
+    for(var i = 0; i < list.length; i++)
+        loadModule(list[i]);
+}
+
+function reloadAllModules() {
+    if(!list) {
+        var list = [];
+        for(var i in settings.modules) {
+            var modl = settings.modules[i];
+            if("autorun" in modl && modl.autorun === true)
+                list.push(i);
+        }
+    }
+
+    if(!Array.isArray(list))
+        list = [list];
+
+    for(var i = 0; i < list.length; i++)
+        reloadModule(list[i]);
+}
 
 /*
     ===================
     NICKNAME UTILITIES!
-    ===================    
+    ===================
 */
 var iconvert = {};
 
@@ -246,8 +396,8 @@ function getModeOfNick(username, onChannel) {
 function isOpOnChannel(username, channel) {
     var mode = getModeOfNick(username, channel.toLowerCase());
     if(mode != null) {
-    	if(mode == "@" || mode == "&" || mode == "~")
-    		return true;
+        if(mode == "@" || mode == "&" || mode == "~")
+            return true;
     }
     return false;
 }
@@ -358,20 +508,20 @@ function toHHMMSS(numbr) {
 }
 
 function addCommas(nStr) {
-	nStr += '';
-	var x = nStr.split('.');
-	var x1 = x[0];
-	var x2 = x.length > 1 ? '.' + x[1] : '';
-	var rgx = /(\d+)(\d{3})/;
-	while (rgx.test(x1)) {
-		x1 = x1.replace(rgx, '$1' + ',' + '$2');
-	}
-	return x1 + x2;
+    nStr += '';
+    var x = nStr.split('.');
+    var x1 = x[0];
+    var x2 = x.length > 1 ? '.' + x[1] : '';
+    var rgx = /(\d+)(\d{3})/;
+    while (rgx.test(x1)) {
+        x1 = x1.replace(rgx, '$1' + ',' + '$2');
+    }
+    return x1 + x2;
 }
 
 // http://stackoverflow.com/a/22149575
 function ytDuration(duration) {
-	var a = duration.match(/\d+/g);
+    var a = duration.match(/\d+/g);
 
     if (duration.indexOf('M') >= 0 && duration.indexOf('H') == -1 && duration.indexOf('S') == -1) {
         a = [0, a[0], 0];
@@ -409,15 +559,15 @@ function ytDuration(duration) {
 
 /* APIs */
 function getYoutubeFromVideo(id, target) {
-	if(g_api == null) return;
-	var g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+g_api+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
-	fetchJSON_HTTPS(g_api_base, function(success, content) {
-		if(success==false) return;
-		if("items" in content) {
-			var tw = content.items[0];
-			sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.snippet.title+"\" \u000303Views: \u000312"+addCommas(tw.statistics.viewCount.toString())+" \u000303Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString())+" \u000303By \u000312\""+tw.snippet.channelTitle+"\"");
-		}
-	});
+    if(g_api == null) return;
+    var g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+g_api+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
+    fetchJSON_HTTPS(g_api_base, function(success, content) {
+        if(success==false) return;
+        if("items" in content) {
+            var tw = content.items[0];
+            bot.sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.snippet.title+"\" \u000303Views: \u000312"+addCommas(tw.statistics.viewCount.toString())+" \u000303Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString())+" \u000303By \u000312\""+tw.snippet.channelTitle+"\"");
+        }
+    });
 }
 /* END */
 
@@ -429,9 +579,9 @@ function listCommands(nick, target) {
     comms.push("*** "+NICK.toUpperCase()+" COMMANDS ***");
     comms.push("All "+NICK+" commands start with a "+PREFIX+" prefix.");
     comms.push("Type  "+PREFIX+"help <command> for more information on that command.");
-    for(var command in commands) {
-        var obj = commands[command];
-        if("description" in obj) {
+    for(var command in bot.commands) {
+        var obj = bot.commands[command];
+        if("description" in obj && !("oper" in obj)) {
             variab = !variab;
             listofem.push("\u0002"+irc.colors.wrap((variab?"dark_green":"light_green"), command));
         }
@@ -443,7 +593,7 @@ function listCommands(nick, target) {
 
 function sendWithDelay(messages, target, time) {
     function sendMessageDelayed(c, arri, timeout) {
-        sendPM(target, arri[c]);
+        bot.sendPM(target, arri[c]);
         c++;
         if(arri[c] != null)
             setTimeout(function() {sendMessageDelayed(c, arri, timeout)}, timeout);
@@ -461,12 +611,12 @@ function fetchJSON(url, callback) {
         });
 
         res.on('end',function(){
-        	try{
-	            var obj = JSON.parse(data);
-	            callback(true, obj);
-        	}catch(err) {
-        		callback(false, "Parse Failed.");
-        	}
+            try{
+                var obj = JSON.parse(data);
+                callback(true, obj);
+            }catch(err) {
+                callback(false, "Parse Failed.");
+            }
         })
 
     }).on('error', function(e) {
@@ -485,11 +635,11 @@ function fetchJSON_HTTPS(url, callback) {
 
         res.on('end',function(){
             try{
-	            var obj = JSON.parse(data);
-	            callback(true, obj);
-        	}catch(err) {
-        		callback(false, "Parse Failed.");
-        	}
+                var obj = JSON.parse(data);
+                callback(true, obj);
+            }catch(err) {
+                callback(false, "Parse Failed.");
+            }
         })
 
     }).on('error', function(e) {
@@ -510,24 +660,24 @@ function getCurrentSong(callback) {
     fetchJSON("http://radio.djazz.se/icecast.php", function(success, content) {
         if(success) {
             if(content.listeners != null) {
-	            fetchJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
-	            	if(xt.title != null && xe) {
-		                var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
-		                var artist = xt.artist;
-		                if(artist!=null) {
-		                    theTitle=theTitle+" by "+artist;
-		                }
-		                callback(theTitle, content.listeners, true);
-		                return;
-	            	} else {
-	            		callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
-	            	}
-	            });
+                fetchJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
+                    if(xt.title != null && xe) {
+                        var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
+                        var artist = xt.artist;
+                        if(artist!=null) {
+                            theTitle=theTitle+" by "+artist;
+                        }
+                        callback(theTitle, content.listeners, true);
+                        return;
+                    } else {
+                        callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
+                    }
+                });
             } else {
-            	callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
+                callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
             }
         } else {
-        	callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
+            callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
         }
     });
 }
@@ -652,11 +802,11 @@ function findUrls(text) {
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
     if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(1) in commands) {
-        var command = commands[simplified[0].toLowerCase().substring(1)];
+        var command = bot.commands[simplified[0].toLowerCase().substring(1)];
         if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
     }else if(isPM && simplified[0].toLowerCase() in commands) {
-        var command = commands[simplified[0].toLowerCase()];
+        var command = bot.commands[simplified[0].toLowerCase()];
         if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
     }else if(findUrls(message).length > 0) {
@@ -669,18 +819,18 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
         } else if(link.indexOf("youtube.com") !== -1) {
         var det = link.match("[\\?&]v=([^&#]*)")[1];
             if(det) {
-				getYoutubeFromVideo(det, target);
+                getYoutubeFromVideo(det, target);
             }
         } else if(link.indexOf("dailymotion.com/video/") !== -1) {
             var det = link.match("/video/([^&#]*)")[1];
             if(det) {
                 dailymotion(det, (function(data) {
-                    sendPM(target, "\u0002\u000303Dailymotion\u000f \u000312\""+data.title+"\" \u000303Views: \u000312"+data.views_total.toString().addCommas()+" \u000303Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000303By \u000312\""+data["owner.screenname"]+"\"");
+                    bot.sendPM(target, "\u0002\u000303Dailymotion\u000f \u000312\""+data.title+"\" \u000303Views: \u000312"+data.views_total.toString().addCommas()+" \u000303Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000303By \u000312\""+data["owner.screenname"]+"\"");
                 }))
             }
         }
     }else if(isMentioned) {
-        sendPM(target, nick+": Hello there!");
+        bot.sendPM(target, nick+": Hello there!");
     }
 }
 
@@ -783,11 +933,12 @@ function p_vars_save() {
 }
 
 // Load variables of p_vars
-function p_vars_load() {
+function p_vars_load(olog) {
     fs.readFile('savedvars.json', 'utf8', function (err, data) {
       if (err) return;
       p_vars = JSON.parse(data);
-      mylog('Variables object loaded.');
+      if(olog)
+        mylog('Variables object loaded.');
     });
 }
 
@@ -805,6 +956,7 @@ var bot = new irc.Client(SERVER, NICK, {
     //certExpired: true,
     stripColors: true
 });
+
 var lasttopic = {};
 
 bot.on('error', function (message) {
@@ -816,12 +968,12 @@ bot.on('topic', function (channel, topic, nick) {
     logTopic(channel, topic, nick);
 });
 bot.on('message', function (from, to, message) {
-	if(to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
-    	var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
-    	var isMentioned = simplified.indexOf(NICK) !== -1;
-    	logChat(from, to, message, isMentioned);
-    	handleMessage(from, to, message, simplified, isMentioned, false);
-	}
+    if(to.indexOf("#") === 0) { // 'pm' handles if this is false.. god damn you irc module, you derp.
+        var simplified = message.replace(/\:/g, ' ').replace(/\,/g, ' ').replace(/\./g, ' ').replace(/\?/g, ' ').trim().split(' ');
+        var isMentioned = simplified.indexOf(NICK) !== -1;
+        bot.logChat(from, to, message, isMentioned);
+        handleMessage(from, to, message, simplified, isMentioned, false);
+    }
 });
 bot.on('join', function (channel, nick) {
     if (nick === NICK) {
@@ -895,7 +1047,7 @@ bot.on('-mode', function(channel, by, mode, argument, message) {
     mylog("* MODE -%s %s by %s", mode, argument || channel, by || message.server);
 });
 bot.on('nick', function(oldNick, newNick, channels) {
-	emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
+    emitter.emit('newIrcMessage', oldNick, "", " is now known as "+newNick, "NICK");
 });
 
 var rl = readline.createInterface({
@@ -921,7 +1073,7 @@ rl.on('line', function (line) {
         var split = line.split(" ");
         var nick = split[1];
         var msg = split.slice(2).join(" ");
-        sendPM(nick, msg);
+        bot.sendPM(nick, msg);
     } else if (line.indexOf('/join ') === 0) {
         var chan = line.substr(6);
         if(chan!=null)
@@ -934,7 +1086,7 @@ rl.on('line', function (line) {
             if(c=="save"){
                 p_vars_save();
             }else if(c=="load"){
-                p_vars_load();
+                p_vars_load(true);
             }
         }
     } else if (line.indexOf('/part ') === 0) {
@@ -960,6 +1112,27 @@ rl.on('line', function (line) {
             }
         } else {
             mylog("Not enough arguments for target. Usage: /t #channel");
+        }
+    } else if (line.indexOf('/module') === 0) {
+        var msg = line.split(" ");
+        if(msg[1] && msg[2]) {
+            if(msg[1].toLowerCase() === "load") {
+                info("Loading module "+msg[2]);
+                loadModule(msg[2]);
+            } else if(msg[1].toLowerCase() === "reload") {
+                info("Reloading module "+msg[2]);
+                reloadModule(msg[2]);
+            } else if(msg[1].toLowerCase() === "unload") {
+                info("Unloading module "+msg[2]);
+                unloadModule(msg[2]);
+            } else {
+                mylog("Not enough arguments for module. Usage: /module <reload/load/unload> <module>");
+            }
+        } else if(msg[1]==="reloadall") {
+            info("Reloading all modules");
+            reloadAllModules();
+        } else {
+            mylog("Not enough arguments for module. Usage: /module <reload/load/unload> <module>");
         }
     } else if (line.indexOf('/ops') === 0) {
         var msg = line.split(" ");
@@ -1006,6 +1179,9 @@ rl.on('SIGINT', function() {
     });
 });
 
+bot.settings = settings;
+bot.commands = commands;
+
 info('Connecting...');
 ircRelayServer();
 
@@ -1024,11 +1200,20 @@ function info() {
 
 function sendChat() {
     var message = util.format.apply(null, arguments);
-    logChat(NICK, chattarget, message);
+    bot.logChat(NICK, chattarget, message);
     bot.say(chattarget, message);
 }
 
-function sendPM(target) {
+
+bot.consolePrint = function() {
+    mylog(arguments);
+}
+
+bot.consoleInfo = function() {
+    info(arguments);
+}
+
+bot.sendPM = function(target) {
     if (target === chattarget) {
         sendChat.apply(null, Array.prototype.slice.call(arguments, 1));
         return;
@@ -1037,19 +1222,26 @@ function sendPM(target) {
     logPM(NICK+" -> "+target, message);
     bot.say(target, message);
 }
-function logChat(nick, chan, message, isMentioned) {
+
+bot.logChat = function(nick, chan, message, isMentioned) {
     if (isMentioned) {
         nick = nick.yellow;
     }
     mylog('[%s] %s: %s', chan, nick.bold, message);
     emitter.emit('newIrcMessage', nick, chan, message, "PRIVMSG");
 }
+
+bot.fetchJSON = fetchJSON;
+bot.fetchJSON_HTTPS = fetchJSON_HTTPS;
+
 function logPM(target, message) {
     mylog('%s: %s', target.bold.blue, message);
 }
+
 function logTopic(channel, topic, nick) {
     info('Topic for %s is "%s", set by %s', channel.bold, topic.yellow, nick.bold.cyan);
 }
+
 function zf(v) {
     if (v > 9) {
         return ""+v;
@@ -1057,6 +1249,7 @@ function zf(v) {
         return "0"+v;
     }
 }
+
 function readableTime(timems, ignoreMs) {
     var time = timems|0;
     var ms = ignoreMs?'':"."+zf((timems*100)%100|0);
@@ -1065,3 +1258,8 @@ function readableTime(timems, ignoreMs) {
     else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
     else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
 } 
+
+// Load all modules
+loadModules();
+// Load stored variables
+p_vars_load(false);

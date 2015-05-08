@@ -5,29 +5,13 @@ This is a [node.js](http://nodejs.org/) powered IRC bot made by [LunaSquee](http
 ### Getting started
 1. Clone this repo
 2. Install the dependencies `npm install`
-3. See the instructions below on how to create the settings file
+3. Copy and edit the settings `cp settings.example.json settings.json`
 4. Run the bot `npm start`
 
-### Requirements
-You must create a file called `settings.json` that has your bot's nickname, password and some other settings.
-
-Template:
-```
-{
-    "username": "Squeebot",
-    "password": "*****",
-    "server": "irc.canternet.org",
-    "port": 6667,
-    "channel": "#BronyTalk",
-    "prefix":"!",
-
-    "enableRelay": false,
-    "relayPort": 9977,
-    "relayPassword": "*******"
-}
-```
-
-**Leave irc password as null if no password.**
+### Modules
+You are able to write modules for the bot, there is an example module in the `modules` directory.
+To get the module to auto-load, you can put it in the settings file's `modules` object and give it a property `"autoload":true`.
+You can load modules from the console by doing `/module load myModuleName`. There are also commands reload, unload and reloadall.
 
 ### IRC Relay Server
 This bot also provides a relay that outputs the messages sent to connected channels. This feature was designed for [MC-Squeebot](https://github.com/LunaSquee/MC-Squeebot) to post irc messages into the Minecraft chat.

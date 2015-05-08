@@ -1,0 +1,16 @@
+{
+    "username": "Squeebot",
+    "password": null,
+    "server": "irc.server.net",
+    "port": 6667,
+    "channel": "#channel",
+    "prefix": "!",
+
+    "googleapikey":null,
+
+    "enableRelay": false,
+    "relayPort": 9977,
+    "relayPassword": "passwd",
+
+    "modules":{"exampleModule":{"autorun":true}}
+}
