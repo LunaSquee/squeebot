@@ -31,6 +31,11 @@ var PREFIX = settings.prefix;       // The prefix of commands
 var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
 var week = 7*24*60*60*1000;
 
+// Handle unexpected errors.
+process.on('uncaughtException', function (err) {
+    console.log(err.stack);
+});
+
 // rules/infoc: Rules and information for individual channels.
 // botops: Bot operators (soon to be implementing)
 var p_vars = {
@@ -41,7 +46,7 @@ var p_vars = {
     botops:{"icydiamond":1}
 }
 // The target channel of the bot's input field.
-var chattarget = ""
+var chattarget = "";
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, "description":COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
 var commands = {
@@ -670,7 +675,12 @@ function getCurrentSong(callback) {
                         callback(theTitle, content.listeners, true);
                         return;
                     } else {
-                        callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
+                        var theTitle = new Buffer(content.title, "utf8").toString("utf8");
+                        var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
+                        if(splitUp.length===2) {
+                            theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
+                        }
+                        callback(theTitle, content.listeners, true);
                     }
                 });
             } else {
