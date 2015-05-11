@@ -56,7 +56,7 @@ var commands = {
             if(cmdName in commands) {
                 var cmd = commands[cmdName];
                 if(cmd.description) {
-                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd.description+("oper" in cmd ? (cmd.oper === 1 ? " \u000307[BOTOP ONLY]" : " \u000303[CHANOP ONLY]") : ""));
+                    sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd.description+("oper" in cmd ? (cmd.oper === 1 ? " \u0002[BOTOP ONLY]" : " \u0002[CHANOP ONLY]") : ""));
                 } else {
                     sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f - Undefined command!");
                 }
@@ -848,8 +848,6 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                 }))
             }
         }
-    }else if(isMentioned) {
-        sendPM(target, nick+": Hello there!");
     }
 }
 

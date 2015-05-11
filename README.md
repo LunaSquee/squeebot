@@ -10,7 +10,7 @@ This is a [node.js](http://nodejs.org/) powered IRC bot made by [LunaSquee](http
 
 ### Modules
 You are able to write modules for the bot, there is an example module in the `modules` directory.
-To get the module to auto-load, you can put it in the settings file's `modules` object and give it a property `"autoload":true`.
+To get the module to auto-load, you can put it in the settings file's `modules` object and give it a property `"autorun":true`.
 You can load modules from the console by doing `/module load myModuleName`. There are also commands reload, unload and reloadall.
 
 ### IRC Relay Server
