@@ -848,6 +848,14 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
                 }))
             }
         }
+    } else if(isMentioned) {
+        var indexff = simplified.indexOf(NICK);
+        if(simplified[indexff-1] != null && (simplified[indexff-1].toLowerCase() === "hi" ||
+                                             simplified[indexff-1].toLowerCase() === "hey" ||
+                                             simplified[indexff-1].toLowerCase() === "hello" ||
+                                             simplified[indexff-1].toLowerCase() === "hai")) {
+            sendPM(target, "Hey "+nick+"!!");
+        }
     }
 }
 
