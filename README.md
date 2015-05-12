@@ -12,6 +12,7 @@ This is a [node.js](http://nodejs.org/) powered IRC bot made by [LunaSquee](http
 You are able to write modules for the bot, there is an example module in the `modules` directory.
 To get the module to auto-load, you can put it in the settings file's `modules` object and give it a property `"autorun":true`.
 You can load modules from the console by doing `/module load myModuleName`. There are also commands reload, unload and reloadall.
+[More info on how to write modules and an example](https://github.com/LunaSquee/squeebot/blob/master/modules/exampleModule.js)
 
 ### IRC Relay Server
 This bot also provides a relay that outputs the messages sent to connected channels. This feature was designed for [MC-Squeebot](https://github.com/LunaSquee/MC-Squeebot) to post irc messages into the Minecraft chat.

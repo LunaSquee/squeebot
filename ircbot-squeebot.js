@@ -820,6 +820,7 @@ function findUrls(text) {
 // Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
+    bot.emit("smartpm", nick, chan, message, simplified, target, isMentioned, isPM);
     if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(1) in commands) {
         var command = bot.commands[simplified[0].toLowerCase().substring(1)];
         if("action" in command)

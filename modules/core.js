@@ -1,4 +1,4 @@
-var supportedEvents = ["join", "part", "quit", "topic", "message", "pm", "notice", "+mode", "-mode", "nick", "whois", "raw"];
+var supportedEvents = ["join", "part", "quit", "topic", "message", "pm", "notice", "+mode", "-mode", "nick", "whois", "raw", "smartpm"];
 var util = require("util");
 var Module = function(listeners) {
 	var self = this;
