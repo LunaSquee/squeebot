@@ -1137,7 +1137,7 @@ rl.on('line', function (line) {
             if(msg[1].toLowerCase() in bot.chans) {
                 chattarget = msg[1].toLowerCase();
                 info("You're now talking to "+chattarget);
-                rl.setPrompt(("["+channel+"] ").bold.green + util.format("> ".bold.magenta), 2);
+                rl.setPrompt(("["+msg[1]+"] ").bold.green + util.format("> ".bold.magenta), 2);
             } else {
                 info("You're not connected to "+msg[1]);
             }
