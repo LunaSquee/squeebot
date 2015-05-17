@@ -6,11 +6,23 @@
     "channel": "#channel",
     "prefix": "!",
 
-    "googleapikey":null,
-
     "enableRelay": false,
     "relayPort": 9977,
     "relayPassword": "passwd",
 
-    "modules":{"exampleModule":{"autorun":true}}
+    "modules":{
+        "videograb": {
+            "autorun": true,
+            "googleapikey":null
+        }, 
+        "djazz": {
+            "autorun": false
+        },
+        "nextepisode": {
+            "autorun": true,
+            "date": [2015, 4-1, 4, 15, 30, 0], 
+            "countTimes": 26, 
+            "inSeason": 5
+        }
+    }
 }

@@ -16,7 +16,6 @@ var path = require('path');
 var events = require("events");
 var emitter = new events.EventEmitter();
 var settings = require("./settings.json");
-var g_api = settings.googleapikey;
 var _modules = {};
 
 // Config
@@ -27,9 +26,6 @@ var IDENT = settings.password;      // Password of the bot. Set to null to not u
 var REALNAME = 'LunaSquee\'s bot';  // Real name of the bot
 var CHANNEL = settings.channel;     // The default channel(s) for the bot
 var PREFIX = settings.prefix;       // The prefix of commands
-// Episode countdown (!nextep)
-var airDate = Date.UTC(2015, 4-1, 4, 15, 30, 0); // Year, month-1, day, hour, minute, second (UTC)
-var week = 7*24*60*60*1000;
 
 // Handle unexpected errors.
 process.on('uncaughtException', function (err) {
@@ -107,26 +103,6 @@ var commands = {
             sendPM(target, "No rules to display for "+chan);
         }
     }), "description":"- Channel Rules"},
-
-    "np":{"action":(function(simplified, nick, chan, message, target) {
-        getCurrentSong(function(d, e, i) { 
-            if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
-            } else { 
-                sendPM(target, d);
-            }
-        })
-    }), "description":"- Currently playing song on Parasprite Radio"},
-    
-    "radio":{"action":(function(simplified, nick, chan, message, target) {
-        getCurrentSong(function(d, e, i) { 
-            if(i) { 
-                sendPM(target, "\u000303Now playing: \u000312"+d+" \u000303Listeners: \u000312"+e+" \u000303Click here to tune in: \u000312http://radio.djazz.se/");
-            } else { 
-                sendPM(target, d);
-            }
-        })
-    }), "description":"- Tune in to Parasprite Radio"},
     
     "yay":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": http://flutteryay.com");
@@ -139,25 +115,6 @@ var commands = {
     "hug":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, "*Hugs "+nick+"*");
     })},
-    
-    "viewers":{"action":(function(simplified, nick, chan, message, target) {
-        livestreamViewerCount((function(r) { 
-            sendPM(target, r+" \u000303Livestream: \u000312http://djazz.se/live/")
-        }))
-    }),"description":"- Number of people watching djazz'es livestream"},
-    
-    "nextep":{"action":(function(simplified, nick, chan, message, target) {
-        var counter = 0;
-        var now = Date.now();
-        do {
-            var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
-        } while (timeLeft === 0 && counter < 26);
-        if (counter === 26) {
-            sendPM(target, "Season 5 is over :(");
-        } else {
-            sendPM(target, (counter===1?"First":"Next")+" Season 5 episode airs in %s", readableTime(timeLeft, true));
-        }
-    }),"description":"- Time left until next pony episode."},
     
     "episodes":{"action":(function(simplified, nick, chan, message, target) {
         sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
@@ -491,73 +448,6 @@ iconvert.modeToText = (function(mode) {
     }
     return prefix;
 });
-/*
-    End of nick utils.
-    Misc. Utilities
-*/
-
-function toHHMMSS(numbr) {
-    var sec_num = parseInt(numbr, 10); // don't forget the second param
-    var hours   = Math.floor(sec_num / 3600);
-    var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
-    var seconds = sec_num - (hours * 3600) - (minutes * 60);
-
-    if (hours   < 10) {hours   = "0"+hours;}
-    if (minutes < 10) {minutes = "0"+minutes;}
-    if (seconds < 10) {seconds = "0"+seconds;}
-    var time = '';
-    if(parseInt(hours) > 0)
-        time = hours+':'+minutes+':'+seconds;
-    else
-        time = minutes+':'+seconds;
-    return time;
-}
-
-function addCommas(nStr) {
-    nStr += '';
-    var x = nStr.split('.');
-    var x1 = x[0];
-    var x2 = x.length > 1 ? '.' + x[1] : '';
-    var rgx = /(\d+)(\d{3})/;
-    while (rgx.test(x1)) {
-        x1 = x1.replace(rgx, '$1' + ',' + '$2');
-    }
-    return x1 + x2;
-}
-
-// http://stackoverflow.com/a/22149575
-function ytDuration(duration) {
-    var a = duration.match(/\d+/g);
-
-    if (duration.indexOf('M') >= 0 && duration.indexOf('H') == -1 && duration.indexOf('S') == -1) {
-        a = [0, a[0], 0];
-    }
-
-    if (duration.indexOf('H') >= 0 && duration.indexOf('M') == -1) {
-        a = [a[0], 0, a[1]];
-    }
-    if (duration.indexOf('H') >= 0 && duration.indexOf('M') == -1 && duration.indexOf('S') == -1) {
-        a = [a[0], 0, 0];
-    }
-
-    duration = 0;
-
-    if (a.length == 3) {
-        duration = duration + parseInt(a[0]) * 3600;
-        duration = duration + parseInt(a[1]) * 60;
-        duration = duration + parseInt(a[2]);
-    }
-
-    if (a.length == 2) {
-        duration = duration + parseInt(a[0]) * 60;
-        duration = duration + parseInt(a[1]);
-    }
-
-    if (a.length == 1) {
-        duration = duration + parseInt(a[0]);
-    }
-    return toHHMMSS(duration.toString());
-}
 
 // POLYFILLS!
 
@@ -572,20 +462,6 @@ Object.size = function(obj) {
 /*
     End of Misc. Utils.
 */
-
-/* APIs */
-function getYoutubeFromVideo(id, target) {
-    if(g_api == null) return;
-    var g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+g_api+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
-    fetchJSON_HTTPS(g_api_base, function(success, content) {
-        if(success==false) return;
-        if("items" in content) {
-            var tw = content.items[0];
-            sendPM(target, "\u0002You\u000305Tube\u000f \u000312\""+tw.snippet.title+"\" \u000303Views: \u000312"+addCommas(tw.statistics.viewCount.toString())+" \u000303Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString())+" \u000303By \u000312\""+tw.snippet.channelTitle+"\"");
-        }
-    });
-}
-/* END */
 
 // List all commands that have a description set
 function listCommands(nick, target) {
@@ -669,38 +545,6 @@ function formatmesg(message) {
     return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u001D') : pass3;
 }
 
-// Get current Parasprite Radio song
-function getCurrentSong(callback) {
-    fetchJSON("http://radio.djazz.se/icecast.php", function(success, content) {
-        if(success) {
-            if(content.listeners != null) {
-                fetchJSON("http://radiodev.djazz.se/api/now/json", function(xe, xt) {
-                    if(xt.title != null && xe) {
-                        var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
-                        var artist = xt.artist;
-                        if(artist!=null) {
-                            theTitle=theTitle+" by "+artist;
-                        }
-                        callback(theTitle, content.listeners, true);
-                        return;
-                    } else {
-                        var theTitle = new Buffer(content.title, "utf8").toString("utf8");
-                        var splitUp = theTitle.replace(/\&amp;/g, "&").split(" - ");
-                        if(splitUp.length===2) {
-                            theTitle=splitUp[1]+(splitUp[0]?" by "+splitUp[0]:"");
-                        }
-                        callback(theTitle, content.listeners, true);
-                    }
-                });
-            } else {
-                callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
-            }
-        } else {
-            callback("\u000307Parasprite Radio\u000f is \u000304offline!", "", false);
-        }
-    });
-}
-
 // Gameserver info (This function makes me puke)
 function getGameInfo(game, host, callback, additional) {
     gamedig.query(
@@ -771,52 +615,6 @@ function getGameInfo(game, host, callback, additional) {
     );
 }
 
-// Dailymotion video puller
-function dailymotion(id, callback) {
-    fetchJSON_HTTPS("https://api.dailymotion.com/video/"+id+"?fields=id,title,owner,owner.screenname,duration,views_total", function(success, content) {
-        if(success) {
-            callback(content);
-        }
-    });
-}
-
-// Livestream viewers
-function livestreamViewerCount(callback) {
-    fetchJSON("http://djazz.se/live/info.php", function(success, content) {
-        if(success) {
-            var view = content.viewcount;
-            if(view!=-1) {
-                callback("\u000303Viewers: \u000311"+view);
-            } else {
-                callback("\u000304The livestream is offline");
-            }
-        } else {
-            callback("\u000304The livestream is offline");
-        }
-    });
-}
-
-// Finds urls in string
-function findUrls(text) {
-    var source = (text || '').toString();
-    var urlArray = [];
-    var url;
-    var matchArray;
-    var regexToken = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g;
-
-    while((matchArray = regexToken.exec(source))!== null) {
-        var token = matchArray[0];
-        if(token.indexOf("youtube.com/watch?v=") !== -1) {
-            urlArray.push(token);
-        } else if(token.indexOf("youtu.be/") !== -1) {
-            urlArray.push(token);
-        } else if(token.indexOf("dailymotion.com/video/") !== -1) {
-            urlArray.push(token);
-        }
-    }
-    return urlArray;
-}
-
 // Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
@@ -829,32 +627,9 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
         var command = bot.commands[simplified[0].toLowerCase()];
         if("action" in command)
             command.action(simplified, nick, chan, message, target, isMentioned, isPM);
-    }else if(findUrls(message).length > 0) {
-        var link = findUrls(message)[0];
-        if(link.indexOf("youtu.be") !== -1) {
-        var det = link.substring(link.indexOf('.be/')+4);
-            if(det) {
-                getYoutubeFromVideo(det, target);
-            }
-        } else if(link.indexOf("youtube.com") !== -1) {
-        var det = link.match("[\\?&]v=([^&#]*)")[1];
-            if(det) {
-                getYoutubeFromVideo(det, target);
-            }
-        } else if(link.indexOf("dailymotion.com/video/") !== -1) {
-            var det = link.match("/video/([^&#]*)")[1];
-            if(det) {
-                dailymotion(det, (function(data) {
-                    sendPM(target, "\u0002\u000303Dailymotion\u000f \u000312\""+data.title+"\" \u000303Views: \u000312"+data.views_total.toString().addCommas()+" \u000303Duration: \u000312"+data.duration.toString().toHHMMSS()+" \u000303By \u000312\""+data["owner.screenname"]+"\"");
-                }))
-            }
-        }
     } else if(isMentioned) {
-        var indexff = simplified.indexOf(NICK);
-        if(simplified[indexff-1] != null && (simplified[indexff-1].toLowerCase() === "hi" ||
-                                             simplified[indexff-1].toLowerCase() === "hey" ||
-                                             simplified[indexff-1].toLowerCase() === "hello" ||
-                                             simplified[indexff-1].toLowerCase() === "hai")) {
+        var rex = new RegExp("(hi|hey|hai|hello) "+bot.nick, 'gim');
+        if(rex.exec(message) != null) {
             sendPM(target, "Hey "+nick+"!!");
         }
     }
@@ -963,6 +738,30 @@ function p_vars_load(olog) {
     fs.readFile('savedvars.json', 'utf8', function (err, data) {
       if (err) return;
       p_vars = JSON.parse(data);
+      if(olog)
+        mylog('Variables object loaded.');
+    });
+}
+
+// Save settings
+function settings_save() {
+    var json_en = JSON.stringify(bot.settings);
+    if(json_en) {
+        fs.writeFile('settings.json', json_en, function (err) {
+          if (err) {
+            console.log(err);
+            return;
+          }
+          mylog('Variables object saved.');
+        });
+    }
+}
+
+// Load settings
+function settings_load(olog) {
+    fs.readFile('settings.json', 'utf8', function (err, data) {
+      if (err) return;
+      bot.settings = JSON.parse(data);
       if(olog)
         mylog('Variables object loaded.');
     });
@@ -1119,6 +918,15 @@ rl.on('line', function (line) {
                 p_vars_load(true);
             }
         }
+    } else if (line.indexOf('/settings ') === 0) {
+        var c = line.substr(10);
+        if(c!=null && c!="") {
+            if(c=="save"){
+                settings_save();
+            }else if(c=="load"){
+                settings_load(true);
+            }
+        }
     } else if (line.indexOf('/part ') === 0) {
         var chan = line.substr(6);
         bot.part(chan, NICK+" goes bye bye from this channel.");
@@ -1271,6 +1079,25 @@ bot.isGlobalOp = isGlobalOp;
 bot.isOpOnChannel = isOpOnChannel;
 bot.sendPM = sendPM;
 bot.logChat = logChat;
+bot.nickutil = iconvert;
+
+// Add commands to the bot from module
+bot.linkCommands = function(commandsobj, linkname) {
+    for(var cmd in commandsobj) {
+        var tred = commandsobj[cmd];
+        tred["_hookedTo"] = linkname;
+        bot.commands[cmd] = tred;
+    }
+}
+
+// Remove commands from the bot from module
+bot.unlinkCommands = function(linkname) {
+    for(var cmd in bot.commands) {
+        var tred = bot.commands[cmd];
+        if("_hookedTo" in tred && tred["_hookedTo"] === linkname)
+            delete bot.commands[cmd];
+    }
+}
 
 function logPM(target, message) {
     mylog('%s: %s', target.bold.blue, message);
@@ -1279,23 +1106,6 @@ function logPM(target, message) {
 function logTopic(channel, topic, nick) {
     info('Topic for %s is "%s", set by %s', channel.bold, topic.yellow, nick.bold.cyan);
 }
-
-function zf(v) {
-    if (v > 9) {
-        return ""+v;
-    } else {
-        return "0"+v;
-    }
-}
-
-function readableTime(timems, ignoreMs) {
-    var time = timems|0;
-    var ms = ignoreMs?'':"."+zf((timems*100)%100|0);
-    if (time < 60) return zf(time)+ms+"s";
-    else if (time < 3600) return zf(time / 60|0)+"m "+zf(time % 60)+ms+"s";
-    else if (time < 86400) return zf(time / 3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+ms+"s";
-    else return (time / 86400|0)+"d "+zf((time % 86400)/3600|0)+"h "+zf((time % 3600)/60|0)+"m "+zf((time % 3600)%60)+"s";
-} 
 
 // Load all modules after everything else is set.
 loadModules();
