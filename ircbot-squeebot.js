@@ -1004,7 +1004,7 @@ bot.on('message', function (from, to, message) {
 bot.on('join', function (channel, nick) {
     if (nick === NICK) {
         mylog((" --> ".green.bold)+"You joined channel "+channel.bold);
-        rl.setPrompt(util.format("> ".bold.magenta), 2);
+        rl.setPrompt(("["+channel+"] ").bold.green + util.format("> ".bold.magenta), 2);
         chattarget = channel.toLowerCase();
         rl.prompt(true);
     } else {
@@ -1033,6 +1033,10 @@ bot.on('part', function (channel, nick, reason) {
         emitter.emit('newIrcMessage', nick, channel, " has left ", "PART");
     } else {
         mylog((" <-- ".red.bold)+'You have left %s', channel.bold);
+        if(Object.size(bot.chans) > 0) {
+            chattarget = bot.chans[Object.keys(bot.chans)[0]].serverName;
+            rl.setPrompt(("["+chattarget+"] ").bold.green + util.format("> ".bold.magenta), 2);
+        }
     }
 });
 bot.on('quit', function (nick, reason, channels) {
@@ -1133,11 +1137,12 @@ rl.on('line', function (line) {
             if(msg[1].toLowerCase() in bot.chans) {
                 chattarget = msg[1].toLowerCase();
                 info("You're now talking to "+chattarget);
+                rl.setPrompt(("["+channel+"] ").bold.green + util.format("> ".bold.magenta), 2);
             } else {
                 info("You're not connected to "+msg[1]);
             }
         } else {
-            mylog("Not enough arguments for target. Usage: /t #channel");
+            info("You're currently talking to "+chattarget);
         }
     } else if (line.indexOf('/module') === 0) {
         var msg = line.split(" ");
