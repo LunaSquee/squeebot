@@ -655,7 +655,7 @@ function ircRelayServer() {
         function ping() {
             clearTimeout(pingWait);
             pingWait = setTimeout(function () {
-                c.write('ping');
+                c.write('ping\r\n');
                 //info('RELAY: Send ping');
                 pingTimeout = setTimeout(function () {
                     c.destroy();
@@ -695,21 +695,21 @@ function ircRelayServer() {
 
                 if (data === settings.relayPassword) {
                     info('RELAY: Client logged in');
-                    c.write('Password accepted');
+                    c.write('Password accepted\r\n');
                     ircRelayMessageHandle(c);
                     ping();
                 } else {
                     info('RELAY: Client supplied wrong password: %s', data);
-                    c.end("Wrong password");
+                    c.end("Wrong password\r\n");
                 }
             } else {
-                if (data === 'pong') {
+                if (data.trim() === 'pong') {
                     pong();
                 }
             }
         });
         var timeout = setTimeout(function () {
-            c.end("You were too slow :I");
+            c.end("You were too slow :I\r\n");
             info('RELAY: Client was too slow (timeout during handshake)');
         }, 10*1000);
 
