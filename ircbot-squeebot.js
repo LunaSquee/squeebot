@@ -537,12 +537,13 @@ function fetchJSON_HTTPS(url, callback) {
     });
 }
 
+function crHex(r) {
+	return new Buffer(r.toString(), 'hex').toString('utf8');
+}
+
 // Experimental Function!
 function formatmesg(message) {
-    var pass1 = message.match(/#c/g) ? message.replace(/#c/g, '\u0003').replace(/#f/g, "\u000f") + '\u000f' : message;
-    var pass2 = pass1.match(/#b/g) ? pass1.replace(/#b/g, '\u0002') : pass1;
-    var pass3 = pass2.match(/#u/g) ? pass2.replace(/#u/g, '\u001F') : pass2;
-    return pass3.match(/#i/g) ? pass3.replace(/#i/g, '\u001D') : pass3;
+    return message.replace(/#c;/g, '\u0003').replace(/#f;/g, "\u000f").replace(/#b;/g, '\u0002').replace(/#u;/g, '\u001F').replace(new RegExp('#x([0-9a-fA-F]{2});', 'g'), function(regex, hex){return crHex(hex);}).replace(/#i;/g, '\u001D');
 }
 
 // Gameserver info (This function makes me puke)
@@ -618,7 +619,6 @@ function getGameInfo(game, host, callback, additional) {
 // Handles messages
 function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
     var target = isPM ? nick : chan;
-    bot.emit("smartpm", nick, chan, message, simplified, target, isMentioned, isPM);
     if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(1) in commands) {
         var command = bot.commands[simplified[0].toLowerCase().substring(1)];
         if("action" in command)
@@ -632,6 +632,8 @@ function handleMessage(nick, chan, message, simplified, isMentioned, isPM) {
         if(rex.exec(message) != null) {
             sendPM(target, "Hey "+nick+"!!");
         }
+    } else {
+    	bot.emit("smartpm", nick, chan, message, simplified, target, isMentioned, isPM);
     }
 }
 
@@ -932,7 +934,7 @@ rl.on('line', function (line) {
         bot.part(chan, NICK+" goes bye bye from this channel.");
     } else if (line.indexOf('/me ') === 0) {
         var msg = line.substr(4);
-        if(msg!=null && msg=="")
+        if(msg!=null && msg!="")
             bot.action(chattarget, msg);
         else
             mylog("Not enough arguments for ACTION.");
