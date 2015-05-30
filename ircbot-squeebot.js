@@ -267,8 +267,8 @@ function loadModule(mod) {
         if(module === _modules[mod])
             return;
         // If the module has defined confugration for it in settings, load that in.
-        if(mod in settings.modules)
-            config = settings.modules[mod];
+        if(mod in bot.settings.modules)
+            config = bot.settings.modules[mod];
         // Initiate loading and save it
         module.load(mod, bot, config);
         module.starttime = Date();
@@ -308,8 +308,8 @@ function loadModules(list) {
     info("Loading modules..");
     if(!list) {
         var list = [];
-        for(var i in settings.modules) {
-            var modl = settings.modules[i];
+        for(var i in bot.settings.modules) {
+            var modl = bot.settings.modules[i];
             if("autorun" in modl && modl.autorun === true)
                 list.push(i);
         }
@@ -325,8 +325,8 @@ function loadModules(list) {
 function reloadAllModules() {
     if(!list) {
         var list = [];
-        for(var i in settings.modules) {
-            var modl = settings.modules[i];
+        for(var i in bot.settings.modules) {
+            var modl = bot.settings.modules[i];
             if("autorun" in modl && modl.autorun === true)
                 list.push(i);
         }
