@@ -1,0 +1,11 @@
+[
+	{"tags": ["squeebot", "whats", "time"], "responses": [], "execCommand": {"c": "date", "args": []}},
+	{"tags": ["squeebot", "what", "time"], "responses": [], "execCommand": {"c": "date", "args": []}},
+	{"tags": ["squeebot", "alpaca"], "responses": [], "execCommand": {"c": "alpaca", "args": ["@sender"]}},
+	{"tags": ["squeebot", "what", "song"], "responses": [], "execCommand": {"c": "np", "args": []}},
+	{"tags": ["what", "song", "radio"], "responses": [], "execCommand": {"c": "np", "args": []}},
+	{"tags": ["squeebot", "toast"], "responses": ["Yay for toast!", "I love toast."], "execCommand": null},
+	{"tags": ["when", "next", "episode"], "responses": [], "execCommand": {"c": "nextep"}},
+	{"tags": ["squeebot", "how", "you", "look"], "responses": ["@sender: http://ok3y11.deviantart.com/art/Squeebot-601593978", "@sender: I am the cutest pony http://ok3y11.deviantart.com/art/Squeebot-601593978 :)", "@sender: I look like delicious chocolate cake: http://ok3y11.deviantart.com/art/Squeebot-601593978 :)"], "execCommand": null},
+	{"tags": ["squeebot", "what", "meaning", "life"], "responses": ["Toasters.", "Cake!", "I don't know.", "Alpacas!"], "execCommand": null}
+]
