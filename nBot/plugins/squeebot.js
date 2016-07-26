@@ -237,7 +237,7 @@ var commands = {
 				date = Math.round(new Date().getTime() / 1000); 
 				break; 
 			default: 
-				date = new Date();
+				date = new Date().toString();
 		} 
 		sendPM(target, date);
 	})},
@@ -282,13 +282,15 @@ var commands = {
 	}),description:"- List of pony episodes"},
 	
 	"mc":{action: (function(simplified, nick, chan, message, pretty, target) {
+		return sendPM(target, "\u000310[Minecraft] \u00034No servers.");
+
 		var reqplayers = false;
 
 		if(simplified[1] === "players") {
 			reqplayers = true;
 		}
 
-		getGameInfo("minecraft", "mc.pawprintradio.com", function(err, msg) {
+		getGameInfo("minecraftping", "mc.mlp-episodes.tk", function(err, msg) {
 			if(err) { 
 				sendPM(target, err);
 				return;
@@ -384,7 +386,7 @@ var commands = {
 
 		var rand = Math.floor(Math.random() * alpaca.length)
 		sendPM(target, nick+": http://jocketf.se/c/"+alpaca[rand])
-	}},
+	}, alias: 'alpacas'},
 
 	"squees":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(nick != "Diamond" && nick != "IcyDiamond" && nick != "LunaSquee")
@@ -628,10 +630,20 @@ var commands = {
 		}
 		if(!simplified[1]) return;
 
-		var command = message.substring(isPM ? 3 : PREFIX.length+3);
+		var extpos = isPM ? 3 : PREFIX.length+3;
+		var stripnl = true;
+
+		if(simplified[1] == '-n') {
+			extpos += 3;
+			stripnl = false;
+		}
+
+		var command = message.substring(extpos);
 		exec(command, {shell: '/bin/bash'}, function(error, stdout, stderr) {
 			if(stdout) {
-				sendPM(target, stdout.replace(/\n/g, " ;; "));
+				if(stripnl)
+					stdout = stdout.replace(/\n/g, " ;; ");
+				sendPM(target, stdout);
 			} else {
 				mylog(error);
 			}
@@ -692,7 +704,10 @@ var commands = {
 		for(var c in commands) {
 			var cmd = commands[c];
 			if(cmd["alias"] && cmd["alias"] == simplified[1].toLowerCase()) {
-				aliases.push("\u00033"+c+"\u000f");
+				aliases.push("\u00033"+c+"\u0003");
+			}
+			if(c == simplified[1].toLowerCase() && "alias" in cmd) {
+				aliases.push("\u00033"+cmd.alias+"\u0003");
 			}
 		}
 
@@ -701,7 +716,7 @@ var commands = {
 			return;
 		}
 
-		sendPM(target, "Aliases for \u00033"+simplified[1].toLowerCase()+"\u000f: "+aliases.join(", "));
+		sendPM(target, "Aliases for \u00033"+simplified[1].toLowerCase()+"\u0003: "+aliases.join(", "));
 	}), description:"<command> - Find aliases for this command."},
 
 	"responselist": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -717,7 +732,8 @@ var commands = {
 	"radio":{action: (function() {commands['np'].action.apply(null, arguments)}), description: "- Current song on Parasprite Radio"},
 	"livestream":{action: (function() {commands['viewers'].action.apply(null, arguments)}), description: "- Number of people watching djazz'es Livestream"},
 	"minecraft":{action: (function() {commands['mc'].action.apply(null, arguments)}), description: "[players] - Information about our Minecraft Server"},
-	"ep":{action: (function() {commands['episode'].action.apply(null, arguments)}), alias: "episode"}
+	"ep":{action: (function() {commands['episode'].action.apply(null, arguments)}), alias: "episode"},
+	"alpacas":{action: (function() {commands['alpaca'].action.apply(null, arguments)})}
 };
 
 // PRIVMSG functions such as CTCP handling
@@ -1346,7 +1362,8 @@ function getGameInfo(game, host, callback, additional, port) {
 						callback(null, "\u000310[Team Fortress 2] \u00033IP: \u000312"+host+" \u00033MOTD: \u000312\""+state.name+"\" \u00033Players: \u000312"+state.raw.numplayers+"/"+state.maxplayers);
 					}
 					break;
-				case "minecraft":
+				case "minecraftping":
+					console.log(state)
 					if(state.error) return callback("\u000310[Minecraft] \u00034Server is offline!", null);
 					if(additional!=null && additional === true) {
 						if(state.players.length > 0) {
@@ -1359,7 +1376,7 @@ function getGameInfo(game, host, callback, additional, port) {
 							callback(null, "\u000310[Minecraft] \u00034No players");
 						}
 					} else {
-						callback(null, "\u000310[Minecraft] \u00033IP:\u000312 "+host+":"+port+" \u00033MOTD: \u000312\""+parseMinecraftForIRC(state.name)+"\u000f\" \u00033Players: \u000312"+state.raw.numplayers+"/"+state.raw.maxplayers);
+						callback(null, "\u000310[Minecraft] \u00033IP:\u000312 "+host+":"+port+" \u00033MOTD: \u000312\""+parseMinecraftForIRC(state.raw.description)+"\u000f\u000312\" \u00033Players: \u000312"+state.players.length+"/"+state.maxplayers+" \u00033Version: \u000312"+state.raw.version);
 					}
 					break;
 				case "mumbleping":
@@ -1564,6 +1581,18 @@ function tellEvent(eventData, target, countdown) {
 			sendPM(target, "\u0002Event: \u000f\u00034"+eventData.eventName+"\u000f\u0002 is over :(");
 		}
 	}
+}
+
+// Offset timezone from UTC
+function offsetTZ(offset) {
+	let utc = new Date(new Date().toUTCString()).getTime()
+	return utc + 3600000 * offset
+}
+
+// Offset timezone from UTC (readable string)
+function offsetTZStr(offset) {
+	offset = offset >= 0 ? "+"+offset : offset
+	return new Date(offsetTZ(offset)).toUTCString()+offset
 }
 
 // Finds urls in string
