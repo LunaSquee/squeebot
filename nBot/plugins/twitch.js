@@ -84,7 +84,7 @@ var pluginObj = {
 				} else {
 					manePlugin.sendPM(target, "\u00034An error occured with the request to Twitch API");
 				}
-	        });
+	        }, {"Client-ID": pluginSettings.api.client});
 		}, "[<channel>] [args] - Twitch.tv handle");
 	}
 };
@@ -112,9 +112,9 @@ module.exports.main = function (passedData) {
 	pluginId = passedData.id;
 	botF = botObj.publicData.botFunctions;
 	botV = botObj.publicData.botVariables;
-	settings = botObj.publicData.settings;
+	settings = botObj.publicData.options;
 	pluginSettings = settings.pluginsSettings[pluginId];
-	ircChannelUsers = botObj.publicData.ircChannelUsers;
+	ircChannelUsers = botV.ircChannelUsers;
 	
 	//if plugin settings are not defined, define them
 	if (pluginSettings === undefined) {

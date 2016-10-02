@@ -516,9 +516,9 @@ module.exports.main = function (passedData) {
 	pluginId = passedData.id;
 	botF = botObj.publicData.botFunctions;
 	botV = botObj.publicData.botVariables;
-	settings = botObj.publicData.settings;
+	settings = botObj.publicData.options;
 	pluginSettings = settings.pluginsSettings[pluginId];
-	ircChannelUsers = botObj.publicData.ircChannelUsers;
+	ircChannelUsers =  botV.ircChannelUsers;
 	
 	//if plugin settings are not defined, define them
 	if (pluginSettings === undefined) {

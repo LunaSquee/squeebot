@@ -37,6 +37,7 @@ var calSyncInterval = false;
 var botObj;
 var pluginId;
 var botF;
+var botV;
 var botInstanceSettings;
 var settings;
 var ircChannelUsers;
@@ -282,7 +283,7 @@ var commands = {
 	}),description:"- List of pony episodes"},
 	
 	"mc":{action: (function(simplified, nick, chan, message, pretty, target) {
-		return sendPM(target, "\u000310[Minecraft] \u00034No servers.");
+		//return sendPM(target, "\u000310[Minecraft] \u00034No servers.");
 
 		var reqplayers = false;
 
@@ -290,13 +291,13 @@ var commands = {
 			reqplayers = true;
 		}
 
-		getGameInfo("minecraftping", "mc.mlp-episodes.tk", function(err, msg) {
+		getGameInfo("minecraftping", "192.168.8.137", function(err, msg) {
 			if(err) { 
 				sendPM(target, err);
 				return;
 			}
 			sendPM(target, msg);
-		}, reqplayers, 5065);
+		}, reqplayers);
 	}), alias:"minecraft"},
 	
 	"mumble":{action: (function(simplified, nick, chan, message, pretty, target) {
@@ -728,18 +729,95 @@ var commands = {
 			return response_list_save()
 	}), permlevel: 3},
 
+	"youtube": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		let betr = message.split(' ');
+		let vid = betr[1];
+		if(!vid)
+			return sendPM(target, nick+": Please provide a video url or ID!");
+		if(vid.indexOf("youtube.com/") != -1)
+			vid = vid.match("[\\?&]v=([^&#]*)");
+		else if(vid.indexOf("youtu.be/") != -1)
+			vid = vid.match(/youtu.be\/([^\?\&\#]+)/i)[1];
+		if(!vid)
+			return sendPM(target, nick+": Please provide a valid video url or ID!");
+		
+		getYoutubeFromVideo(vid, target);
+	}),  description:"<link/id> - YouTube video information."},
+
 	"listeners":{action: (function() {commands['l'].action.apply(null, arguments)}), description: "- Number of people listening to Parasprite Radio"},
 	"radio":{action: (function() {commands['np'].action.apply(null, arguments)}), description: "- Current song on Parasprite Radio"},
 	"livestream":{action: (function() {commands['viewers'].action.apply(null, arguments)}), description: "- Number of people watching djazz'es Livestream"},
 	"minecraft":{action: (function() {commands['mc'].action.apply(null, arguments)}), description: "[players] - Information about our Minecraft Server"},
 	"ep":{action: (function() {commands['episode'].action.apply(null, arguments)}), alias: "episode"},
+	"yt":{action: (function() {commands['youtube'].action.apply(null, arguments)}), alias: "youtube"},
 	"alpacas":{action: (function() {commands['alpaca'].action.apply(null, arguments)})}
 };
 
+// List of urls we want to be looking for to handle them
+let urlsToFind = ["youtube.com/watch", "youtu.be/", "dailymotion.com/video/", "spotify.com/track/", "derpibooru.org/", "derpicdn.net/",
+				  "derpiboo.ru/", "soundcloud.com/", "twitter.com/"]
+
+// List of all urls that will be handled.
+let urls = {
+	"youtube.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match("[\\?&]v=([^&#]*)");
+		if(det) {
+			getYoutubeFromVideo(det[1], target);
+		}
+	})},
+	"youtu.be/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/youtu.be\/([^\?\&\#]+)/i)[1];
+		if(det) {
+			getYoutubeFromVideo(det, target);
+		}
+	})},
+	"soundcloud.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		getSoundcloudFromUrl(link, target);
+	})},
+	"dailymotion.com/video/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match("/video/([^&#]*)")[1];
+		if(det) {
+			dailymotion(det, target);
+		}
+	})},
+	"derpiboo": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/derpiboo\.?ru(\.org)?\/(images\/)?(\d+[^#?&])/i);
+		if(det && det[3] != null) {
+			let numbere = parseInt(det[3]);
+			if(numbere) {
+				derpibooru_handle(numbere, target, nick);
+			}
+		}
+	})},
+	"derpicdn": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/derpicdn\.net\/img\/?(view)?\/\d+\/\d+\/\d+\/(\d[^_\/?#]+)/i);
+		if(det && det[2] != null) {
+			let numbere = parseInt(det[2]);
+			if(numbere) {
+				derpibooru_handle(numbere, target, nick);
+			}
+		}
+	})},
+	"twitter.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/twitter.com\/\w+\/status\/(\d+[^&#?\s\/])/i);
+		if(det) {
+			if("tweety" in botObj.pluginData) {
+				botObj.pluginData.tweety.plugin.sendTweetResponse(det[1], target, 0);
+			}
+		}
+	})},
+	"spotify.com/track/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match("/track/([^&#]*)")[1];
+		if(det) {
+			getSpotifySongFromID(det, target);
+		}
+	})}
+}
+
 // PRIVMSG functions such as CTCP handling
-var privmsgFunc = {
+let privmsgFunc = {
 	ctcpRespond:function(data) {
-		var timestamp;
+		let timestamp;
 		if (new RegExp('\x01VERSION\x01', 'g').exec(data.message) !== null) {
 			botF.ircSendCommandNOTICE("\x01VERSION I'm a plugin for nBot written by LunaSquee.\x01", data.nick);
 		} else if (new RegExp('\x01CLIENTINFO\x01', 'g').exec(data.message) !== null) {
@@ -1019,16 +1097,17 @@ function loadstat(loads) {
 			result.push("\u000312 "+load+"\u000f");
 		else if(parseFloat(load) < 1)
 			result.push("\u00037 "+load+"\u000f");
-		else if(parseFloat(load) > 1)
+		else if(parseFloat(load) >= 1)
 			result.push("\u00035 "+load+"\u000f");
 	}
 	return result.join(',');
 }
 
 function parseForMinecraft(message) {
-	return message.replace(/\x0310/g, '§3').replace(/\x0311/g, '§b').replace(/\x0312/g, '§9').replace(/\x0313/g, '§d').replace(/\x0314/g, '§8').replace(/\x0315/g, '§7')
+	message = message.replace(/\x0310/g, '§3').replace(/\x0311/g, '§b').replace(/\x0312/g, '§9').replace(/\x0313/g, '§d').replace(/\x0314/g, '§8').replace(/\x0315/g, '§7')
 	.replace(/\x030/g, '§f').replace(/\x031/g, '§0').replace(/\x032/g, '§1').replace(/\x033/g, '§2').replace(/\x034/g, '§c').replace(/\x035/g, '§4').replace(/\x036/g, '§5')
-	.replace(/\x037/g, '§6').replace(/\x031/g, '§e').replace(/\x039/g, '§a').replace(/\x02/g, '§l').replace(/\x0f/g, '§r').replace(/\x1F/g, '§n');
+	.replace(/\x037/g, '§6').replace(/\x031/g, '§e').replace(/\x039/g, '§a').replace(/\x02/g, '§l').replace(/\x0f/g, '§r').replace(/\x1F/g, '§n')
+	return message.replace(/\x03/g, '§r');
 }
 
 function parseMinecraftForIRC(message) {
@@ -1363,7 +1442,6 @@ function getGameInfo(game, host, callback, additional, port) {
 					}
 					break;
 				case "minecraftping":
-					console.log(state)
 					if(state.error) return callback("\u000310[Minecraft] \u00034Server is offline!", null);
 					if(additional!=null && additional === true) {
 						if(state.players.length > 0) {
@@ -1376,7 +1454,7 @@ function getGameInfo(game, host, callback, additional, port) {
 							callback(null, "\u000310[Minecraft] \u00034No players");
 						}
 					} else {
-						callback(null, "\u000310[Minecraft] \u00033IP:\u000312 "+host+":"+port+" \u00033MOTD: \u000312\""+parseMinecraftForIRC(state.raw.description)+"\u000f\u000312\" \u00033Players: \u000312"+state.players.length+"/"+state.maxplayers+" \u00033Version: \u000312"+state.raw.version);
+						callback(null, "\u000310[Minecraft] \u00033IP:\u000312 lunasqu.ee \u00033MOTD: \u000312\""+parseMinecraftForIRC(state.raw.description)+"\u000f\u000312\" \u00033Players: \u000312"+state.players.length+"/"+state.maxplayers+" \u00033Version: \u000312"+state.raw.version);
 					}
 					break;
 				case "mumbleping":
@@ -1428,16 +1506,37 @@ function dailymotion(id, target) {
 // Youtube information from id
 function getYoutubeFromVideo(id, target, isQueue) {
 	if(settings["googleapikey"] == null) return;
-	var g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+settings.googleapikey+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
+	let g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+settings.googleapikey+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
 	fetchJSON(g_api_base, function(error, content) {
-		if(error!=null) return;
+		if(error != null) {
+			console.log(error);
+			return sendPM(target, "Unexpected error occured.");
+		}
+
 		if("items" in content) {
-			if(content.items.length <= 0) {
-				sendPM(target, "Video not found.");
-				return;
+			if(content.items.length <= 0)
+				return sendPM(target, "Video does not exist or is private.");
+
+			let prefix = "";
+			let tw = content.items[0];
+			let live = false;
+			let ratings = "";
+			
+			if(tw.statistics.likeCount)
+				ratings = " \u00039▲ "+addCommas(tw.statistics.likeCount.toString())+" \u00034▼ "+addCommas(tw.statistics.dislikeCount.toString());
+			
+			if(isQueue)
+				prefix += "\u000310\u0002[QUEUED] \u0002\u0003";
+
+			if(tw.snippet.liveBroadcastContent == 'live') {
+				live = true;
+				prefix += "\u00035\u0002[LIVE] \u0002\u0003";
 			}
-			var tw = content.items[0];
-			sendPM(target, (isQueue ? "\u000310\u0002[QUEUED] \u0002\u0003" : "")+"\u0002You\u00035Tube\u000f \u000312\""+tw.snippet.title+"\" \u00033Views: \u000312"+addCommas(tw.statistics.viewCount.toString())+" \u00033Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString())+" \u00039▲ "+addCommas(tw.statistics.likeCount.toString())+" \u00034▼ "+addCommas(tw.statistics.dislikeCount.toString())+" \u00033By \u000312\""+tw.snippet.channelTitle+"\"");
+
+			sendPM(target, prefix+"\u0002You\u00035Tube\u0003\u0002 \u000312\""+tw.snippet.title+"\" \u00033Views: \u000312"+
+				addCommas(tw.statistics.viewCount.toString())+
+				(live == true ? "" : " \u00033Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString()))+
+				ratings+" \u00033By \u000312\""+tw.snippet.channelTitle+"\"");
 		}
 	});
 }
@@ -1445,7 +1544,7 @@ function getYoutubeFromVideo(id, target, isQueue) {
 var DBCategoryTag = ["suggestive", "questionable", "explicit", "safe", "grimdark", "semi-grimdark", "grotesque"]
 
 function DBTagSort(a, b) {
-	var tag = a;
+	let tag = a;
 	if(DBCategoryTag.indexOf(tag) !== -1)
 		return -1;
 	tag = b;
@@ -1455,12 +1554,12 @@ function DBTagSort(a, b) {
 
 function DBTagConstruct(taglist) {
 	taglist = taglist.sort(DBTagSort);
-	var res = [];
-	var color = "\u00039";
-	var t = 0;
+	let res = [];
+	let color = "\u00039";
+	let t = 0;
 
-	for(var tagindex in taglist) {
-		var tag = taglist[tagindex];
+	for(let tagindex in taglist) {
+		let tag = taglist[tagindex];
 		if(tag.indexOf("oc") === 0) {
 			color = "\u000313";
 		} else if(DBCategoryTag.indexOf(tag) !== -1) {
@@ -1486,17 +1585,17 @@ function DBTagConstruct(taglist) {
 
 // Kick on NSFW derpibooru links
 function derpibooru_handle(id, target, nick) {
-	var derpibooRoot = "https://derpibooru.org/";
+	let derpibooRoot = "https://derpibooru.org/";
 	fetchJSON(derpibooRoot+id+".json", function(error, content) {
 		if(error == null) {
 			if("tags" in content) {
 				let taglist = content.tags.split(", ");
 				sendPM(target, "\u000312Derpibooru\u00039 >>"+id+" \u00037★ "+addCommas(content.faves.toString())+" \u00039▲ "+addCommas(content.upvotes.toString())+" \u00034▼ "+addCommas(content.downvotes.toString())+" "+DBTagConstruct(taglist));
-				if(taglist.indexOf("explicit") !== -1) {
+/*				if(taglist.indexOf("explicit") !== -1) {
 					if(target.indexOf("#") === 0) {
 						botF.ircWriteData("KICK "+target+" "+nick+" :Do not post NSFW images in chat.");
 					}
-				}
+				}*/
 			}
 		}
 	});
@@ -1505,7 +1604,7 @@ function derpibooru_handle(id, target, nick) {
 // Fetch soundscloud data
 function getSoundcloudFromUrl(url, target, isQueue) {
 	if(settings['soundcloudkey'] == null) return;
-	var apibase = "https://api.soundcloud.com";
+	let apibase = "https://api.soundcloud.com";
 	fetchJSON(apibase+"/resolve?url="+url+"&client_id="+settings.soundcloudkey, function(error, response) {
 		if(error) {
 			info("SoundCloud fetch Failed");
@@ -1605,9 +1704,7 @@ function findUrls(text) {
 
 	while((matchArray = regexToken.exec(source))!== null) {
 		let token = matchArray[0];
-		if (token.indexOf("youtube.com/watch") !== -1 || token.indexOf("youtu.be/") !== -1 || token.indexOf("dailymotion.com/video/") !== -1 ||
-			token.indexOf("soundcloud.com/") !== -1 || token.indexOf("spotify.com/track/") !== -1 || token.indexOf("derpibooru.org") !== -1 ||
-			token.indexOf("derpiboo.ru") !== -1 || token.indexOf("derpicdn.net") !== -1 || token.indexOf("twitter.com/") !== -1 || token.indexOf("lunasqu.ee/") !== -1) {
+		if (token.containsKeywordIn(urlsToFind)) {
 			urlArray.push(token);
 		} 
 	}
@@ -1634,13 +1731,13 @@ function livestreamViewerCount(callback, stream, streamer) {
 
 // Handles messages
 function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isPM) {
-	var target = isPM ? nick : chan;
-	var hirex = new RegExp("(hi|hey|hai|hello|hiya),? "+NICK, 'gim');
-	var hugrex = new RegExp("\x01ACTION hugs "+NICK, 'gim');
-	var spotrex = "";
+	let target = isPM ? nick : chan;
+	let hirex = new RegExp("(hi|hey|hai|hello|hiya),? "+NICK, 'gim');
+	let hugrex = new RegExp("\x01ACTION hugs "+NICK, 'gim');
+	let spotrex = "";
 	if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(PREFIX.length) in commands) {
-		var permission = permlevel(pretty.rawdata[0].split(' ')[0]);
-		var command = commands[simplified[0].toLowerCase().substring(PREFIX.length)];
+		let permission = permlevel(pretty.rawdata[0].split(' ')[0]);
+		let command = commands[simplified[0].toLowerCase().substring(PREFIX.length)];
 		if("permlevel" in command) {
 			if(permission < command.permlevel) {
 				sendPM(target, nick+": You do not have permission to execute this command!");
@@ -1650,8 +1747,8 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 		if("action" in command)
 			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
 	} else if(isPM && simplified[0].toLowerCase() in commands) {
-		var permission = permlevel(pretty.rawdata[0].split(' ')[0]);
-		var command = commands[simplified[0].toLowerCase()];
+		let permission = permlevel(pretty.rawdata[0].split(' ')[0]);
+		let command = commands[simplified[0].toLowerCase()];
 		if("permlevel" in command) {
 			if(permission < command.permlevel) {
 				sendPM(target, nick+": You do not have permission to execute this command!");
@@ -1667,51 +1764,11 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 	} else if((spotrex = message.match(/spotify:track:([\S]+)/i)) != null) {
 		getSpotifySongFromID(spotrex[1], target);
 	} else if(findUrls(message).length > 0) {
-		var link = findUrls(message)[0];
-		if(link.indexOf("soundcloud.com") !== -1) {
-			getSoundcloudFromUrl(link, target);
-		} else if(link.indexOf("youtu.be/") !== -1) {
-			var det = link.match(/youtu.be\/([^\?\&\#]+)/i)[1];
-			if(det) {
-				getYoutubeFromVideo(det, target);
-			}
-		} else if(link.indexOf("youtube.com/") !== -1) {
-			var det = link.match("[\\?&]v=([^&#]*)");
-			if(det) {
-				getYoutubeFromVideo(det[1], target);
-			}
-		} else if(link.indexOf("dailymotion.com/video/") !== -1) {
-			var det = link.match("/video/([^&#]*)")[1];
-			if(det) {
-				dailymotion(det, target);
-			}
-		} else if(link.indexOf("spotify.com/track/") !== -1) {
-			var det = link.match("/track/([^&#]*)")[1];
-			if(det) {
-				getSpotifySongFromID(det, target);
-			}
-		} else if(link.indexOf("derpiboo") !== -1) {
-			var det = link.match(/derpiboo\.?ru(\.org)?\/(images\/)?(\d+[^#?&])/i);
-			if(det && det[3] != null) {
-				var numbere = parseInt(det[3]);
-				if(numbere) {
-					derpibooru_handle(numbere, target, nick);
-				}
-			}
-		} else if(link.indexOf("derpicdn") !== -1) {
-			var det = link.match(/derpicdn\.net\/img\/?(view)?\/\d+\/\d+\/\d+\/(\d[^_\/?#]+)/i);
-			if(det && det[2] != null) {
-				var numbere = parseInt(det[2]);
-				if(numbere) {
-					derpibooru_handle(numbere, target, nick);
-				}
-			}
-		} else if(link.indexOf("twitter.com/") !== -1) {
-			var det = link.match(/twitter.com\/\w+\/status\/(\d+[^&#?\s\/])/i);
-			if(det) {
-				if("tweety" in botObj.pluginData) {
-					botObj.pluginData.tweety.plugin.sendTweetResponse(det[1], target, 0);
-				}
+		let link = findUrls(message)[0]; // Only handle the first link provided
+		for(let handle in urls) {
+			if(link.indexOf(handle) != -1) {
+				urls[handle].action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+				break;
 			}
 		}
 	} else {
@@ -1831,7 +1888,7 @@ function ircRelayServer() {
 					let da = data.trim();
 					let dz = da.split(":");
 					if(dz[0] === "msg" && dz.length > 2) {
-						sendPM(dz[1], da.substring(dz[0].length + dz[1].length + 2));
+						sendPM(dz[1], parseMinecraftForIRC(da.substring(dz[0].length + dz[1].length + 2)));
 					} else {
 						info("Malformed message from %s: ", addr);
 						mylog(data.trim());
@@ -2104,10 +2161,11 @@ module.exports.main = function (passedData) {
 	// Update variables
 	botObj = passedData.botObj;
 	pluginId = passedData.id;
+	botV = botObj.publicData.botVariables
 	botF = botObj.publicData.botFunctions;
-	botInstanceSettings = botObj.publicData.settings;
+	botInstanceSettings = botObj.publicData.options;
 	settings = botInstanceSettings.pluginsSettings[pluginId];
-	ircChannelUsers = botObj.publicData.ircChannelUsers;
+	ircChannelUsers = botV.ircChannelUsers;
 
 	// If plugin settings are not defined, define them
 	if (settings === undefined) {
@@ -2120,7 +2178,7 @@ module.exports.main = function (passedData) {
 	PREFIX = settings.prefix;
 
 	// Set up episode countdown
-	var tr = settings.nextepisode;
+	let tr = settings.nextepisode;
 	airDate = Date.UTC(tr.date[0], tr.date[1], tr.date[2], tr.date[3], tr.date[4], tr.date[5]); 
 
 	// Load bot variables
@@ -2141,7 +2199,7 @@ module.exports.main = function (passedData) {
 	botF.emitBotEvent('botPluginReadyEvent', pluginId);
 
 	if(settings.nBotLoggerOverride) {
-		botObj.publicData.externalObjects.instanceBotEventHandleObj['PRIVMSG'] = function(connection, data) {
+		botV.botInstanceEventHandles['PRIVMSG'] = function(connection, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
@@ -2153,7 +2211,7 @@ module.exports.main = function (passedData) {
 			process.stdout.write('\x0a');
 		}
 
-		botObj.publicData.externalObjects.instanceBotEventHandleObj['NOTICE'] = function(connection, data) {
+		botV.botInstanceEventHandles['NOTICE'] = function(connection, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
@@ -2165,4 +2223,19 @@ module.exports.main = function (passedData) {
 	//check and utilize dependencies
 	if (botObj.pluginData.simpleMsg && botObj.pluginData.simpleMsg.ready)
 		utilizeSimpleMsg();
+};
+
+/**
+ * Utility functions
+ */
+String.prototype.containsKeywordIn = function(array) {
+	let found = false;
+	for(let i in array) {
+		let instance = array[i];
+		if (this.toString().indexOf(instance) != -1) {
+			found = true;
+			break;
+		}
+	}
+	return found;
 };
