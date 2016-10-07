@@ -3,7 +3,7 @@
 // IRC bot by LunaSquee (Originally djazz, best poni :3)
 
 // This is a plugin for nBot (https://git.mindcraft.si.eu.org/?p=nBot.git)
-// Before using: npm install gamedig googleapis qs
+// Before using: npm install gamedig qs
 // Have fun!
 
 // Modules
@@ -16,7 +16,6 @@ var fs = require('fs')
 var events = require("events")
 var emitter = new events.EventEmitter()
 var exec = require("child_process").exec
-var google = require('googleapis')
 var qs = require('qs')
 var path = require('path')
 
@@ -41,9 +40,6 @@ var botV;
 var botInstanceSettings;
 var settings;
 var ircChannelUsers;
-
-// Google APIs
-var gCalendar = google.calendar('v3');
 
 // Episode countdown (!nextep)
 var week = 7*24*60*60*1000;
@@ -201,7 +197,7 @@ var commands = {
 		} else {
 			var channel = chan.toLowerCase();
 			var t = nick;
-			if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+			if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 				t = simplified[1];
 			if("rules" in squees) {
 				if(channel in squees.rules) {
@@ -222,7 +218,7 @@ var commands = {
 	}), description:"- Channel Rules"},
 	
 	"yay":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": http://flutteryay.com");
 		else
 			sendPM(target, nick+": http://flutteryay.com");
@@ -244,28 +240,28 @@ var commands = {
 	})},
 
 	"squee":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 	})},
 
 	"timetostop":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
 	})},
 	
 	"banned":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://derpibooru.org/795478");
 		else
 			sendPM(target, nick+": https://derpibooru.org/795478");
 	})},
 
 	"request":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
 		else
 			sendPM(target, nick+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
@@ -276,7 +272,7 @@ var commands = {
 	})},
 	
 	"episodes":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
 		else
 			sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
@@ -382,7 +378,7 @@ var commands = {
 
 	"nothing":{description:"- Does absolutely nothing."},
 	"alpaca":{action: function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botObj.publicData.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in botV.ircChannelUsrs[chan])
 			nick = simplified[1]
 
 		var rand = Math.floor(Math.random() * alpaca.length)
@@ -508,7 +504,7 @@ var commands = {
 	}), description:"<code> - Run javascript code.", "permlevel":3},
 
 	"echo":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		sendPM(target, pretty.messageARGS[1].replaceSpecialChars());
+		sendPM(target, botF.strReplaceEscapeSequences(pretty.messageARGS[1]));
 	}), description:"<msg> - Echo back.", "permlevel":2},
 
 	"convertseconds":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -528,13 +524,13 @@ var commands = {
 	"say":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
-			sendPM(channel, message.split(" ").slice(2).join(" ").replaceSpecialChars());
+			sendPM(channel, botF.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
 	}), description:"<channel> <msg> - Say in channel as bot.", "permlevel":2},
 
 	"act":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
-			sendPMact(channel, message.split(" ").slice(2).join(" ").replaceSpecialChars());
+			sendPMact(channel, botF.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
 	}), description:"<channel> <msg> - Act in channel as bot.", "permlevel":2},
 
 	"permlevel":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -843,11 +839,11 @@ function fetchCalendar(calendar, customDescription, timeFrame) {
 		return mylog("Calendar not found.");
 
 	let now = Date.now();
-	gCalendar.events.list({calendarId: calendar,
-						  auth: settings.googleapikey,
-						  timeMin: new Date(now-10*60*1000).toISOString(),
-						  timeMax: new Date(now+timeFrame).toISOString(),
-						  singleEvents: true}, function(err, def) {
+	let url = "https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(calendar)+"/events?key="+settings.googleapikey+
+			  "&timeMin="+new Date(now-10*60*1000).toISOString()+
+			  "&timeMax="+new Date(now+timeFrame).toISOString()+"&singleEvents=true";
+
+	fetchJSON(url, function(err, def) {
 		if(err) {
 			mylog("Calendar events failed to fetch:")
 			console.log(err);
@@ -906,7 +902,7 @@ function calculateAge(birthday) {
 // Check if nick is op on channel
 function isOpOnChannel(user, channel) {
 	var isUserChanOp = false;
-	var ircChannelUsers = botObj.publicData.ircChannelUsers;
+	var ircChannelUsers = botV.ircChannelUsers;
 	if (ircChannelUsers[channel] && ircChannelUsers[channel][user] && ircChannelUsers[channel][user].mode) {
 		if (ircChannelUsers[channel][user].mode.replace(/^(o|q|h|a)$/, "isOp").indexOf("isOp") != -1 ) { isUserChanOp = true; }
 	}
@@ -1959,8 +1955,8 @@ function response_list_load(reslist) {
 }
 
 // Log to console
-function mylog() {
-	botF.debugMsg.apply(botF, Array.prototype.slice.call(arguments));
+function mylog(msg) {
+	botF.debugMsg(msg);
 }
 
 // Log to console #2
