@@ -20,10 +20,8 @@
 
 "use strict";
 //reserved nBot variables
-var botObj;
+var bot;
 var pluginId;
-var botF;
-var botV;
 var settings;
 var pluginSettings;
 var ircChannelUsers;
@@ -60,7 +58,7 @@ var pluginObj = {
 
 	},
 	initCommands: function() {
-		var manePlugin = botObj.pluginData.squeebot.plugin;
+		var manePlugin = bot.plugins.squeebot.plugin;
 		manePlugin.commandAdd(pluginId, "twitch", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
 			var streamer = pluginSettings.trackStreamer;
 			if(simplified[1] != null) {
@@ -106,26 +104,24 @@ module.exports.botEvent = function (event) {
 };
 
 //reserved functions: main function called when plugin is loaded
-module.exports.main = function (passedData) {
+module.exports.main = function (i, b) {
 	//update variables
-	botObj = passedData.botObj;
-	pluginId = passedData.id;
-	botF = botObj.publicData.botFunctions;
-	botV = botObj.publicData.botVariables;
-	settings = botObj.publicData.options;
+	bot = b;
+	pluginId = i;
+	settings = bot.options;
 	pluginSettings = settings.pluginsSettings[pluginId];
-	ircChannelUsers = botV.ircChannelUsers;
+	ircChannelUsers = bot.ircChannelUsers;
 	
 	//if plugin settings are not defined, define them
 	if (pluginSettings === undefined) {
 		pluginSettings = new SettingsConstructor();
 		settings.pluginsSettings[pluginId] = pluginSettings;
-		botF.botSettingsSave();
+		bot.botSettingsSave();
 	}
 	
-	if (botObj.pluginData.squeebot && botObj.pluginData.squeebot.ready)
+	if (bot.plugins.squeebot && bot.plugins.squeebot.ready)
 		pluginObj.initCommands();
 
 	//plugin is ready
-	botF.emitBotEvent('botPluginReadyEvent', pluginId);
+	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 };

@@ -7,22 +7,22 @@
 // Have fun!
 
 // Modules
-var net = require('net')
-var url = require('url')
-var util = require('util')
-var readline = require('readline')
-var gamedig = require('gamedig')
-var fs = require('fs')
-var events = require("events")
-var emitter = new events.EventEmitter()
-var exec = require("child_process").exec
-var qs = require('qs')
-var path = require('path')
+var net = require('net');
+var url = require('url');
+var util = require('util');
+var readline = require('readline');
+var gamedig = require('gamedig');
+var fs = require('fs');
+var events = require("events");
+var emitter = new events.EventEmitter();
+var exec = require("child_process").exec;
+var qs = require('qs');
+var path = require('path');
 
-var squeeDir = __dirname+'/../squeebot/'
-var alpaca = require(squeeDir+'alpaca.json')
+var squeeDir = __dirname+'/../squeebot/';
+var alpaca = require(squeeDir+'alpaca.json');
 
-var responses = 'generic.json'
+var responses = 'generic.json';
 var responselist = [];
 
 // useful variables
@@ -33,10 +33,8 @@ var relayConnections = {};	// Relay connections
 var calSyncInterval = false;
 
 // nBot variables
-var botObj;
+var bot;
 var pluginId;
-var botF;
-var botV;
 var botInstanceSettings;
 var settings;
 var ircChannelUsers;
@@ -56,7 +54,7 @@ var squees = {
 	infoc:{},
 	botops:{"icydiamond":3},
 	ophosts:{}
-}
+};
 
 // Events
 var sEvents = [];
@@ -67,7 +65,7 @@ var splash ="\x1b[1;36m____                        _           _   \n"+
 "\\___ \\ / _` | | | |/ _ \\/ _ \\ \'_ \\ / _ \\| __|\n"+
 " ___) | (_| | |_| |  __/  __/ |_) | (_) | |_ \n"+
 "|____/ \\__, |\\__,_|\\___|\\___|_.__/ \\___/ \\__|\n"+
-"          |_|                                \x1b[0m"
+"          |_|                                \x1b[0m";
 
 // This is the list of all your commands.
 // "command":{"action":YOUR FUNCTION HERE, description:COMMAND USAGE(IF NOT PRESENT, WONT SHOW UP IN !commands)}
@@ -86,7 +84,7 @@ var commands = {
 					sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd.description+("permlevel" in cmd ? " \u0002["+permstring(cmd.permlevel).toUpperCase()+"]" : ""));
 				} else {
 					if(cmd.alias) {
-						var cmd2 = commands[cmd.alias]
+						var cmd2 = commands[cmd.alias];
 						if(cmd2 != null && cmd2.description) {
 							sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd2.description+("permlevel" in cmd2 ? " \u0002["+permstring(cmd2.permlevel).toUpperCase()+"]" : "")+" \u00037[ALIAS FOR \u00033"+cmd.alias+"\u00037]");
 							return;
@@ -134,7 +132,7 @@ var commands = {
 			if("infoc" in squees) {
 				if(channel in squees.infoc) {
 					sendPM(target, nick+": "+squees.infoc[channel]);
-					return
+					return;
 				}
 			}
 			sendPM(target, "No information to display for "+chan);
@@ -197,7 +195,7 @@ var commands = {
 		} else {
 			var channel = chan.toLowerCase();
 			var t = nick;
-			if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+			if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 				t = simplified[1];
 			if("rules" in squees) {
 				if(channel in squees.rules) {
@@ -218,7 +216,7 @@ var commands = {
 	}), description:"- Channel Rules"},
 	
 	"yay":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": http://flutteryay.com");
 		else
 			sendPM(target, nick+": http://flutteryay.com");
@@ -240,28 +238,28 @@ var commands = {
 	})},
 
 	"squee":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 	})},
 
 	"timetostop":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
 	})},
 	
 	"banned":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://derpibooru.org/795478");
 		else
 			sendPM(target, nick+": https://derpibooru.org/795478");
 	})},
 
 	"request":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
 		else
 			sendPM(target, nick+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
@@ -272,7 +270,7 @@ var commands = {
 	})},
 	
 	"episodes":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsers[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
 		else
 			sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
@@ -338,7 +336,7 @@ var commands = {
 				r = "\u00034The livestream is offline";
 			else
 				r = a;
-			sendPM(target, r+" \u00033Livestream: \u000312http://radio.djazz.se/#livestream")
+			sendPM(target, r+" \u00033Livestream: \u000312http://radio.djazz.se/#livestream");
 		}), 0);
 	}),alias: "livestream"},
 
@@ -349,7 +347,7 @@ var commands = {
 			} else { 
 				sendPM(target, d);
 			}
-		})
+		});
 	}), alias: "radio"},
 
 	"l":{action: (function(simplified, nick, chan, message, pretty, target) {
@@ -359,14 +357,15 @@ var commands = {
 			} else { 
 				sendPM(target, d);
 			}
-		})
+		});
 	}), alias: "listeners"},
 
 	"nextep":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var counter = 0;
 		var now = Date.now();
+		var timeLeft;
 		do {
-			var timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
+			timeLeft = Math.max(((airDate+week*(counter++)) - now)/1000, 0);
 		} while (timeLeft === 0 && counter < settings.nextepisode.countTimes);
 		if (counter === settings.nextepisode.countTimes) {
 			sendPM(target, "Season "+settings.nextepisode.inSeason+" is over :(");
@@ -378,23 +377,24 @@ var commands = {
 
 	"nothing":{description:"- Does absolutely nothing."},
 	"alpaca":{action: function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in botV.ircChannelUsrs[chan])
-			nick = simplified[1]
+		if(simplified[1] && simplified[1] in bot.ircChannelUsrs[chan])
+			nick = simplified[1];
 
-		var rand = Math.floor(Math.random() * alpaca.length)
-		sendPM(target, nick+": http://jocketf.se/c/"+alpaca[rand])
+		var rand = Math.floor(Math.random() * alpaca.length);
+		sendPM(target, nick+": http://jocketf.se/c/"+alpaca[rand]);
 	}, alias: 'alpacas'},
 
 	"squees":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		var hostas, nickz, level;
 		if(nick != "Diamond" && nick != "IcyDiamond" && nick != "LunaSquee")
-			return sendPM(target, nick+": I don't think so.")
+			return sendPM(target, nick+": I don't think so.");
 		if(simplified[1] === "save") {
 			squees_save(target);
 		} else if(simplified[1] === "load") {
 			squees_load(target);
 		} else if(simplified[1] === "add") {
 			if (simplified[2] === "host") {
-				var hostas = message.split(' ').slice(3).join(' ');
+				hostas = message.split(' ').slice(3).join(' ');
 				if(hostas != null) {
 					if(hostas in squees.ophosts) 
 						sendPM(target, "Already there!");
@@ -406,9 +406,9 @@ var commands = {
 			}
 		} else if(simplified[1] === "del") {
 			if (simplified[2] === "host") {
-				var hostas = message.split(' ').slice(3).join(' ');
+				hostas = message.split(' ').slice(3).join(' ');
 				if(hostas != null) {
-					if(!hostas in squees.ophosts) 
+					if(!(hostas in squees.ophosts))
 						sendPM(target, "Hostname not in list!");
 					else
 						delete squees.ophosts[hostas];
@@ -417,8 +417,8 @@ var commands = {
 				}
 			}
 		} else if(simplified[1] === "promote") {
-			var nickz = simplified[2];
-			var level = 0;
+			nickz = simplified[2];
+			level = 0;
 
 			if(parseInt(simplified[3])) {
 				level = parseInt(simplified[3]);
@@ -433,8 +433,8 @@ var commands = {
 				sendPM(target, "Invalid nickname");
 			}
 		} else if(simplified[1] === "demote") {
-			var nickz = simplified[2];
-			var level = 0;
+			nickz = simplified[2];
+			level = 0;
 
 			if(parseInt(simplified[3])) {
 				level = parseInt(simplified[3]);
@@ -455,44 +455,44 @@ var commands = {
 
 	"plugin":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(simplified[1] == "load") {
-			botF.botPluginLoad(simplified[2], botInstanceSettings.pluginDir+'/'+simplified[2]+'.js');
+			bot.botPluginLoad(simplified[2], botInstanceSettings.pluginDir+'/'+simplified[2]+'.js');
 			botInstanceSettings.plugins.arrayValueAdd(simplified[2]);
 		} else if(simplified[1] == "reload") {
-			if (botObj.pluginData[simplified[2]]) {
+			if (bot.plugins[simplified[2]]) {
 				pluginReload(simplified[2]);
 			}
 		} else if(simplified[1] == "reloadall") {
 			pluginReload(pluginId); 
-			for (var plugin in botObj.pluginData) {
+			for (var plugin in bot.plugins) {
 				if (plugin != pluginId && plugin != 'simpleMsg') {
 					pluginReload(plugin);
 				}
 			}
 		} else if(simplified[1] == "unload" || simplified[1] == "remove") {
-			botF.botPluginDisable(simplified[2]);
+			bot.botPluginDisable(simplified[2]);
 			botInstanceSettings.plugins.arrayValueRemove(simplified[2]);
 		}
 	}), description:"<load/reload/reloadall/unload> [plugin] - Plugin management", "permlevel":3},
 
 	"binary":{action: (function(simplified, nick, chan, message, data, target, isMentioned, isPM) {
-		var response = '', strArr, i, message = '';
-		for (i in data.messageARGS) {
+		var response = '', strArr, i, msg = '';
+		for (i in data.msgARGS) {
 			if (i > 1) {
-				message += ' '+data.messageARGS[i];
+				msg += ' '+data.msgARGS[i];
 			}
 		}
-		message = message.substr(1)
-		switch (data.messageARGS[1] ? data.messageARGS[1].toUpperCase() : null) {
-			case 'ENCODE': strArr = message.split('');
+		msg = msg.substr(1);
+		switch (data.msgARGS[1] ? data.msgARGS[1].toUpperCase() : null) {
+			case 'ENCODE': strArr = msg.split('');
 				for (i in strArr) {
 					response += ' '+('0000000'+parseInt(new Buffer(strArr[i].toString(), 'utf8').toString('hex'), 16).toString(2)).slice(-8);
 				}
 				response=response.substr(1);
 				break;
-			case 'DECODE': message=message.split(' ').join('');
+			case 'DECODE': msg=msg.split(' ').join('');
 				i = 0;
-				while (8*(i+1) <= message.length) {
-					response += new Buffer(parseInt(message.substr(8*i, 8), 2).toString(16), 'hex').toString('utf8'); i++;
+				while (8*(i+1) <= msg.length) {
+					response += new Buffer(parseInt(msg.substr(8*i, 8), 2).toString(16), 'hex').toString('utf8'); i++;
 				}
 				response = "Decoded: "+response;
 			}
@@ -504,7 +504,7 @@ var commands = {
 	}), description:"<code> - Run javascript code.", "permlevel":3},
 
 	"echo":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		sendPM(target, botF.strReplaceEscapeSequences(pretty.messageARGS[1]));
+		sendPM(target, bot.strReplaceEscapeSequences(pretty.messageARGS[1]));
 	}), description:"<msg> - Echo back.", "permlevel":2},
 
 	"convertseconds":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -524,13 +524,13 @@ var commands = {
 	"say":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
-			sendPM(channel, botF.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
+			sendPM(channel, bot.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
 	}), description:"<channel> <msg> - Say in channel as bot.", "permlevel":2},
 
 	"act":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
-			sendPMact(channel, botF.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
+			sendPMact(channel, bot.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
 	}), description:"<channel> <msg> - Act in channel as bot.", "permlevel":2},
 
 	"permlevel":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -542,7 +542,7 @@ var commands = {
 	})},
 
 	"skip":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		if(settings["paraspritekey"] == null) return;
+		if(settings.paraspritekey == null) return;
 		var url = "http://radio.djazz.se/api/skip?apikey="+settings.paraspritekey;
 
 		fetchJSON(url, function(err, res) {
@@ -557,14 +557,14 @@ var commands = {
 	}),description:"- Skip the current song.", "permlevel":1},
 
 	"announce":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		if(settings["paraspritekey"] == null) return;
+		if(settings.paraspritekey == null) return;
 		var text = "";
 		if(!simplified[1]) {
 			sendPM(target, nick+": Not enough parameters!");
 			return;
 		}
 
-		var text = message.split(" ").slice(1).join(" ");
+		text = message.split(" ").slice(1).join(" ");
 		var url = "http://radio.djazz.se/api/announce?apikey="+settings.paraspritekey+"&message="+encodeURIComponent(text);
 
 		fetchJSON(url, function(err, res) {
@@ -579,7 +579,8 @@ var commands = {
 	}),description:"[say:]<message> - Play an announcement on radio.", "permlevel":1},
 
 	"queue":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		if(settings["paraspritekey"] == null) return;
+		var det;
+		if(settings.paraspritekey == null) return;
 		if(!simplified[1]) {
 			sendPM(target, nick+": Not enough parameters!");
 			return;
@@ -603,12 +604,12 @@ var commands = {
 					if(src.indexOf("soundcloud.com") !== -1) {
 						getSoundcloudFromUrl(src, target, true);
 					} else if(src.indexOf("youtu.be/") !== -1) {
-						var det = src.match(/youtu.be\/([^\?\&\#]+)/i)[1];
+						det = src.match(/youtu.be\/([^\?\&\#]+)/i)[1];
 						if(det) {
 							getYoutubeFromVideo(det, target, true);
 						}
 					} else if(src.indexOf("youtube.com/") !== -1) {
-						var det = src.match("[\\?&]v=([^&#]*)");
+						det = src.match("[\\?&]v=([^&#]*)");
 						if(det) {
 							getYoutubeFromVideo(det[1], target, true);
 						}
@@ -621,7 +622,7 @@ var commands = {
 	}),description:"<file/url> - Queue a song.", "permlevel":1},
 
 	"sh":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		if(settings["allowShell"] == false) {
+		if(settings.allowShell === false) {
 			sendPM(target, "Using shell is disabled.");
 			return;
 		}
@@ -649,7 +650,7 @@ var commands = {
 	}), description:"<command> - icypi shell command.", "permlevel":3},
 
 	"icypi":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		if(settings["allowShell"] == false) {
+		if(settings.allowShell === false) {
 			sendPM(target, "Using shell is disabled.");
 			return;
 		}
@@ -700,7 +701,7 @@ var commands = {
 		var aliases = [];
 		for(var c in commands) {
 			var cmd = commands[c];
-			if(cmd["alias"] && cmd["alias"] == simplified[1].toLowerCase()) {
+			if(cmd.alias && cmd.alias == simplified[1].toLowerCase()) {
 				aliases.push("\u00033"+c+"\u0003");
 			}
 			if(c == simplified[1].toLowerCase() && "alias" in cmd) {
@@ -720,9 +721,9 @@ var commands = {
 		if(simplified[1] == null)
 			return sendPM(target, "Currently using response list "+responses+" with "+responselist.length+" instances.");
 		if(simplified[1] == 'load')
-			return response_list_load(simplified[2])
+			return response_list_load(simplified[2]);
 		if(simplified[1] == 'save')
-			return response_list_save()
+			return response_list_save();
 	}), permlevel: 3},
 
 	"youtube": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
@@ -740,18 +741,18 @@ var commands = {
 		getYoutubeFromVideo(vid, target);
 	}),  description:"<link/id> - YouTube video information."},
 
-	"listeners":{action: (function() {commands['l'].action.apply(null, arguments)}), description: "- Number of people listening to Parasprite Radio"},
-	"radio":{action: (function() {commands['np'].action.apply(null, arguments)}), description: "- Current song on Parasprite Radio"},
-	"livestream":{action: (function() {commands['viewers'].action.apply(null, arguments)}), description: "- Number of people watching djazz'es Livestream"},
-	"minecraft":{action: (function() {commands['mc'].action.apply(null, arguments)}), description: "[players] - Information about our Minecraft Server"},
-	"ep":{action: (function() {commands['episode'].action.apply(null, arguments)}), alias: "episode"},
-	"yt":{action: (function() {commands['youtube'].action.apply(null, arguments)}), alias: "youtube"},
-	"alpacas":{action: (function() {commands['alpaca'].action.apply(null, arguments)})}
+	"listeners":{action: (function() {commands.l.action.apply(null, arguments);}), description: "- Number of people listening to Parasprite Radio"},
+	"radio":{action: (function() {commands.np.action.apply(null, arguments);}), description: "- Current song on Parasprite Radio"},
+	"livestream":{action: (function() {commands.viewers.action.apply(null, arguments);}), description: "- Number of people watching djazz'es Livestream"},
+	"minecraft":{action: (function() {commands.mc.action.apply(null, arguments);}), description: "[players] - Information about our Minecraft Server"},
+	"ep":{action: (function() {commands.episode.action.apply(null, arguments);}), alias: "episode"},
+	"yt":{action: (function() {commands.youtube.action.apply(null, arguments);}), alias: "youtube"},
+	"alpacas":{action: (function() {commands.alpaca.action.apply(null, arguments);})}
 };
 
 // List of urls we want to be looking for to handle them
 let urlsToFind = ["youtube.com/watch", "youtu.be/", "dailymotion.com/video/", "spotify.com/track/", "derpibooru.org/", "derpicdn.net/",
-				  "derpiboo.ru/", "soundcloud.com/", "twitter.com/"]
+				  "derpiboo.ru/", "soundcloud.com/", "twitter.com/"];
 
 // List of all urls that will be handled.
 let urls = {
@@ -797,8 +798,8 @@ let urls = {
 	"twitter.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match(/twitter.com\/\w+\/status\/(\d+[^&#?\s\/])/i);
 		if(det) {
-			if("tweety" in botObj.pluginData) {
-				botObj.pluginData.tweety.plugin.sendTweetResponse(det[1], target, 0);
+			if("tweety" in bot.plugins) {
+				bot.plugins.tweety.plugin.sendTweetResponse(det[1], target, 0);
 			}
 		}
 	})},
@@ -808,33 +809,33 @@ let urls = {
 			getSpotifySongFromID(det, target);
 		}
 	})}
-}
+};
 
 // PRIVMSG functions such as CTCP handling
 let privmsgFunc = {
 	ctcpRespond:function(data) {
 		let timestamp;
 		if (new RegExp('\x01VERSION\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01VERSION I'm a plugin for nBot written by LunaSquee.\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01VERSION I'm a plugin for nBot written by LunaSquee.\x01", data.nick);
 		} else if (new RegExp('\x01CLIENTINFO\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01CLIENTINFO VERSION TIME LOCATION PING CLIENTINFO USERINFO SOURCE\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01CLIENTINFO VERSION TIME LOCATION PING CLIENTINFO USERINFO SOURCE\x01", data.nick);
 		} else if (new RegExp('\x01USERINFO\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01USERINFO Squeebot\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01USERINFO Squeebot\x01", data.nick);
 		} else if (new RegExp('\x01SOURCE\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01SOURCE http://gist.github.com/LunaSquee/95e849c9d44a4874501f\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01SOURCE http://gist.github.com/LunaSquee/95e849c9d44a4874501f\x01", data.nick);
 		} else if (new RegExp('\x01TIME\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01TIME "+new Date()+"\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01TIME "+new Date()+"\x01", data.nick);
 		} else if (new RegExp('\x01LOCATION\x01', 'g').exec(data.message) !== null) {
-			botF.ircSendCommandNOTICE("\x01LOCATION [Intra532] <wEMUlator worlds/*> Equestria\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01LOCATION [Intra532] <wEMUlator worlds/*> Equestria\x01", data.nick);
 		} else if ((timestamp = new RegExp('\x01PING ([^\x01]*)\x01', 'g').exec(data.message)) !== null) {
-			botF.ircSendCommandNOTICE("\x01PING "+timestamp[1]+"\x01", data.nick);
+			bot.ircSendCommandNOTICE("\x01PING "+timestamp[1]+"\x01", data.nick);
 		}
 	},
 };
 
 // Fetch a google calendar
 function fetchCalendar(calendar, customDescription, timeFrame) {
-	if (settings["googleapikey"] == null) return;
+	if (settings.googleapikey == null) return;
 	if (calendar == null)
 		return mylog("Calendar not found.");
 
@@ -845,7 +846,7 @@ function fetchCalendar(calendar, customDescription, timeFrame) {
 
 	fetchJSON(url, function(err, def) {
 		if(err) {
-			mylog("Calendar events failed to fetch:")
+			mylog("Calendar events failed to fetch:");
 			console.log(err);
 			return;
 		}
@@ -865,8 +866,10 @@ function fetchCalendar(calendar, customDescription, timeFrame) {
 
 // Sync calendars
 function synccalendar(no) {
-	if(calSyncInterval == false && no == null)
-		return
+	if(calSyncInterval === false && no == null)
+		return;
+	if (settings.calendars === undefined)
+		return;
 
 	sEvents = [];
 	fetchCalendar(settings.calendars.squeebot, null, 30*24*60*60*1000);
@@ -902,7 +905,7 @@ function calculateAge(birthday) {
 // Check if nick is op on channel
 function isOpOnChannel(user, channel) {
 	var isUserChanOp = false;
-	var ircChannelUsers = botV.ircChannelUsers;
+	var ircChannelUsers = bot.ircChannelUsers;
 	if (ircChannelUsers[channel] && ircChannelUsers[channel][user] && ircChannelUsers[channel][user].mode) {
 		if (ircChannelUsers[channel][user].mode.replace(/^(o|q|h|a)$/, "isOp").indexOf("isOp") != -1 ) { isUserChanOp = true; }
 	}
@@ -933,7 +936,7 @@ function permlevel(hostsa) {
 
 // String representation of a permission level
 function permstring(level, color) {
-	var str = ""
+	var str = "";
 	switch(level) {
 		case 1:
 			str = "Helper";
@@ -1041,9 +1044,9 @@ function getRandomInt(min, max) {
 
 // Generate random string of characters
 function uid(len, full) {
-	var buf = []
-	, chars = (full == null ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
-	, charlen = chars.length;
+	var buf = [],
+		chars = (full == null ? 'abcdefghijklmnopqrstuvwxyz' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'),
+		charlen = chars.length;
 
 	for (var i = 0; i < len; ++i) {
 		buf.push(chars[getRandomInt(0, charlen - 1)]);
@@ -1054,13 +1057,13 @@ function uid(len, full) {
 
 // Reload a plugin
 function pluginReload(plugin) {
-	botF.botPluginDisable(plugin);
-	botF.botPluginLoad(plugin, botInstanceSettings.pluginDir+'/'+plugin+'.js');
+	bot.botPluginDisable(plugin);
+	bot.botPluginLoad(plugin, botInstanceSettings.pluginDir+'/'+plugin+'.js');
 } 
 
 // Sort events by start time
 function sortStartTime(a, b) {
-	return a.eventStartTime - b.eventEndTime
+	return a.eventStartTime - b.eventEndTime;
 }
 
 // Prettify an event object and keep out the unnecessary data
@@ -1077,10 +1080,9 @@ function prettifyEvent(item) {
 
 		start: new Date(item.start.dateTime || item.start.date),
 		end: new Date(item.end.dateTime || item.end.date),
-		sequence: item.sequence,
-		id: item.id
-	}
-	ev.length = (ev.end.getTime()-ev.start.getTime())/1000
+		sequence: item.sequence
+	};
+	ev.length = (ev.end.getTime()-ev.start.getTime())/1000;
 	return ev;
 }
 
@@ -1102,7 +1104,7 @@ function loadstat(loads) {
 function parseForMinecraft(message) {
 	message = message.replace(/\x0310/g, '§3').replace(/\x0311/g, '§b').replace(/\x0312/g, '§9').replace(/\x0313/g, '§d').replace(/\x0314/g, '§8').replace(/\x0315/g, '§7')
 	.replace(/\x030/g, '§f').replace(/\x031/g, '§0').replace(/\x032/g, '§1').replace(/\x033/g, '§2').replace(/\x034/g, '§c').replace(/\x035/g, '§4').replace(/\x036/g, '§5')
-	.replace(/\x037/g, '§6').replace(/\x031/g, '§e').replace(/\x039/g, '§a').replace(/\x02/g, '§l').replace(/\x0f/g, '§r').replace(/\x1F/g, '§n')
+	.replace(/\x037/g, '§6').replace(/\x031/g, '§e').replace(/\x039/g, '§a').replace(/\x02/g, '§l').replace(/\x0f/g, '§r').replace(/\x1F/g, '§n');
 	return message.replace(/\x03/g, '§r');
 }
 
@@ -1113,17 +1115,17 @@ function parseMinecraftForIRC(message) {
 // Strip IRC color codes from string
 function stripColors(str) {
 	return str.replace(/(\x03\d{0,2}(,\d{0,2})?)/g, '');
-};
+}
 
 // Strip IRC style codes from string
 function stripStyle(str) {
 	return str.replace(/[\x0F\x02\x16\x1F]/g, '');
-};
+}
 
 // Strip IRC formatting from string
 function stripColorsAndStyle(str) {
 	return stripColors(stripStyle(str));
-};
+}
 
 // Seconds into HH:MM:SS
 function toHHMMSS(numbr) {
@@ -1262,7 +1264,7 @@ function parseTimeToSeconds(string) {
 	}
 	
 	return seconds;
-};
+}
 /*
 	End of Misc. Utils.
 */
@@ -1295,7 +1297,7 @@ function sendWithDelay(messages, target, time) {
 		sendPM(target, arri[c]);
 		c++;
 		if(arri[c] != null)
-			setTimeout(function() {sendMessageDelayed(c, arri, timeout)}, timeout);
+			setTimeout(function() {sendMessageDelayed(c, arri, timeout);}, timeout);
 	}
 	sendMessageDelayed(0, messages, time || 1000);
 }
@@ -1309,7 +1311,7 @@ function fetchJSON(link, callback, extendedHeaders) {
 		"headers":{
 			"User-Agent": "Squeebot/nBot"
 		}
-	}
+	};
 
 	if(extendedHeaders != null) {
 		for(var ext in extendedHeaders) {
@@ -1325,14 +1327,15 @@ function fetchJSON(link, callback, extendedHeaders) {
 			return;
 		}
 		var data = '';
+		var obj;
 
 		res.on('data', function (chunk) {
 			data += chunk;
-		})
+		});
 
 		res.on('end', function () {
 			try {
-				var obj = JSON.parse(data);
+				obj = JSON.parse(data);
 			}
 			catch (err) {
 				callback(err, data);
@@ -1361,7 +1364,7 @@ function postJSON(link, postdata, callback, headers) {
 			'Content-Length': Buffer.byteLength(post_data),
 			'User-Agent': 'Squeebot/nBot'
 		}
-	}
+	};
 
 	if(headers != null) {
 		for(var ext in headers) {
@@ -1374,6 +1377,7 @@ function postJSON(link, postdata, callback, headers) {
 	var post_req = httpModule.request(post_options, function(res) {
 		res.setEncoding('utf8');
 		var data = "";
+		var obj;
 
 		res.on('data', function (chunk) {
 			data += chunk;
@@ -1381,7 +1385,7 @@ function postJSON(link, postdata, callback, headers) {
 		
 		res.on('end', function() {
 			try{
-				var obj = JSON.parse(data);
+				obj = JSON.parse(data);
 			} catch (err) {
 				callback("no-json", data, res);
 				return;
@@ -1423,9 +1427,9 @@ function getGameInfo(game, host, callback, additional, port) {
 	let d = {
 		type: game,
 		host: host
-	}
+	};
 	if(port)
-		d['port'] = port
+		d.port = port;
 	gamedig.query(d,
 		function(state) {
 			switch(game) {
@@ -1485,7 +1489,7 @@ function getGameInfo(game, host, callback, additional, port) {
 						callback(null, "\u000310[Mumble] \u00033Address: \u000312"+host+" \u00033Users online: \u000312"+state.players.length);
 					//}
 					break;
-			};
+			}
 		}
 	);
 }
@@ -1501,7 +1505,7 @@ function dailymotion(id, target) {
 
 // Youtube information from id
 function getYoutubeFromVideo(id, target, isQueue) {
-	if(settings["googleapikey"] == null) return;
+	if(settings.googleapikey == null) return;
 	let g_api_base = "https://www.googleapis.com/youtube/v3/videos?id="+id+"&key="+settings.googleapikey+"&part=snippet,contentDetails,statistics,status&fields=items(id,snippet,statistics,contentDetails)";
 	fetchJSON(g_api_base, function(error, content) {
 		if(error != null) {
@@ -1531,13 +1535,13 @@ function getYoutubeFromVideo(id, target, isQueue) {
 
 			sendPM(target, prefix+"\u0002You\u00035Tube\u0003\u0002 \u000312\""+tw.snippet.title+"\" \u00033Views: \u000312"+
 				addCommas(tw.statistics.viewCount.toString())+
-				(live == true ? "" : " \u00033Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString()))+
+				(live === true ? "" : " \u00033Duration: \u000312"+ytDuration(tw.contentDetails.duration.toString()))+
 				ratings+" \u00033By \u000312\""+tw.snippet.channelTitle+"\"");
 		}
 	});
 }
 
-var DBCategoryTag = ["suggestive", "questionable", "explicit", "safe", "grimdark", "semi-grimdark", "grotesque"]
+var DBCategoryTag = ["suggestive", "questionable", "explicit", "safe", "grimdark", "semi-grimdark", "grotesque"];
 
 function DBTagSort(a, b) {
 	let tag = a;
@@ -1589,7 +1593,7 @@ function derpibooru_handle(id, target, nick) {
 				sendPM(target, "\u000312Derpibooru\u00039 >>"+id+" \u00037★ "+addCommas(content.faves.toString())+" \u00039▲ "+addCommas(content.upvotes.toString())+" \u00034▼ "+addCommas(content.downvotes.toString())+" "+DBTagConstruct(taglist));
 /*				if(taglist.indexOf("explicit") !== -1) {
 					if(target.indexOf("#") === 0) {
-						botF.ircWriteData("KICK "+target+" "+nick+" :Do not post NSFW images in chat.");
+						bot.ircWriteData("KICK "+target+" "+nick+" :Do not post NSFW images in chat.");
 					}
 				}*/
 			}
@@ -1599,7 +1603,7 @@ function derpibooru_handle(id, target, nick) {
 
 // Fetch soundscloud data
 function getSoundcloudFromUrl(url, target, isQueue) {
-	if(settings['soundcloudkey'] == null) return;
+	if(settings.soundcloudkey == null) return;
 	let apibase = "https://api.soundcloud.com";
 	fetchJSON(apibase+"/resolve?url="+url+"&client_id="+settings.soundcloudkey, function(error, response) {
 		if(error) {
@@ -1680,14 +1684,14 @@ function tellEvent(eventData, target, countdown) {
 
 // Offset timezone from UTC
 function offsetTZ(offset) {
-	let utc = new Date(new Date().toUTCString()).getTime()
-	return utc + 3600000 * offset
+	let utc = new Date(new Date().toUTCString()).getTime();
+	return utc + 3600000 * offset;
 }
 
 // Offset timezone from UTC (readable string)
 function offsetTZStr(offset) {
-	offset = offset >= 0 ? "+"+offset : offset
-	return new Date(offsetTZ(offset)).toUTCString()+offset
+	offset = offset >= 0 ? "+"+offset : offset;
+	return new Date(offsetTZ(offset)).toUTCString()+offset;
 }
 
 // Finds urls in string
@@ -1709,11 +1713,11 @@ function findUrls(text) {
 
 // Livestream viewers
 function livestreamViewerCount(callback, stream, streamer) {
-	if(stream == 0) {
+	if(stream === 0) {
 		fetchJSON("http://radio.djazz.se/api/status", function(error, content) {
 			if(error===null) {
 				var view = content.livestream;
-				if(view.online==true) {
+				if(view.online===true) {
 					callback(null, "\u00033Viewers: \u000311"+view.viewers);
 				} else {
 					callback("offline", "\u00034The livestream is offline");
@@ -1768,37 +1772,37 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 			}
 		}
 	} else {
-		let mesgmatcher = message.toLowerCase().replace(/\:|\,|\'|\!|\?|\./g, ' ').trim().split(' ')
+		let mesgmatcher = message.toLowerCase().replace(/\:|\,|\'|\!|\?|\./g, ' ').trim().split(' ');
 		for(let i in responselist) {
-			let resline = responselist[i]
-			let match = true
+			let resline = responselist[i];
+			let match = true;
 			for(let ti in resline.tags) {
-				let tag = resline.tags[ti]
-				if(mesgmatcher.indexOf(tag) == -1 && match == true) {
-					match = false
-					continue
+				let tag = resline.tags[ti];
+				if(mesgmatcher.indexOf(tag) == -1 && match === true) {
+					match = false;
+					continue;
 				}
 			}
-			let response = ''
+			let response = '';
 			if(match) {
-				if(resline.responses.length == 0 && resline.execCommand != null) {
-					let commandargs = [resline.execCommand.c]
+				if(resline.responses.length === 0 && resline.execCommand != null) {
+					let commandargs = [resline.execCommand.c];
 					for(let t in resline.execCommand.args)
-						commandargs.push(resline.execCommand.args[t].replace(/\@sender/g, nick))
-					commands[resline.execCommand.c].action(commandargs, nick, chan, message, pretty, target, isMentioned, isPM)
-					break
-				} else if(resline.responses.length != 0) {
-					let randnum = getRandomInt(0, resline.responses.length-1)
-					response = resline.responses[randnum].replace(/\@sender/g, nick)
+						commandargs.push(resline.execCommand.args[t].replace(/\@sender/g, nick));
+					commands[resline.execCommand.c].action(commandargs, nick, chan, message, pretty, target, isMentioned, isPM);
+					break;
+				} else if(resline.responses.length !== 0) {
+					let randnum = getRandomInt(0, resline.responses.length-1);
+					response = resline.responses[randnum].replace(/\@sender/g, nick);
 				} else {
-					continue
+					continue;
 				}
 			} else {
-				continue
+				continue;
 			}
-			if(response != '')
-				sendPMSD(target, response)
-			break
+			if(response !== '')
+				sendPMSD(target, response);
+			break;
 		}
 	}
 }
@@ -1942,7 +1946,7 @@ function response_list_save() {
 
 // Load response list
 function response_list_load(reslist) {
-	let rtype = reslist || responses
+	let rtype = reslist || responses;
 	let json_en = JSON.stringify(responselist, null, '\t');
 	if(json_en) {
 		fs.readFile(squeeDir+'responselist/'+rtype, 'utf8', function (err, data) {
@@ -1950,13 +1954,13 @@ function response_list_load(reslist) {
 			responselist = JSON.parse(data);
 			responses = rtype;
 			info('Loaded response list "'+responses+'" with '+responselist.length+' instances.');
-		})
+		});
 	}
 }
 
 // Log to console
 function mylog(msg) {
-	botF.debugMsg(msg);
+	bot.debugMsg(msg);
 }
 
 // Log to console #2
@@ -1968,7 +1972,7 @@ function info() {
 // Send a PM with a human-like delay
 function sendPMSD(target) {
 	let message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
-	setTimeout((function() {sendPM(target, message)}), (Math.floor(Math.random() * 3) + 2  ) * 1000);
+	setTimeout((function() {sendPM(target, message);}), (Math.floor(Math.random() * 3) + 2  ) * 1000);
 }
 
 // Send a PRIVMSG
@@ -1978,7 +1982,7 @@ function sendPM(target) {
 		message = stripColorsAndStyle(message);
 	if(target.indexOf("#") === 0 && emitter)
 		emitter.emit('newIrcMessage', NICK, target, message, "PRIVMSG");
-	botF.ircSendCommandPRIVMSG(message, target);
+	bot.ircSendCommandPRIVMSG(message, target);
 }
 
 // Send a NOTICE
@@ -1986,7 +1990,7 @@ function sendNOTICE(target) {
 	let message = util.format.apply(null, Array.prototype.slice.call(arguments, 1));
 	if(settings.stripColors === true)
 		message = stripColorsAndStyle(message);
-	botF.ircSendCommandNOTICE(message, target);
+	bot.ircSendCommandNOTICE(message, target);
 }
 
 // Send a PRIVMSG \x01ACTION
@@ -1994,7 +1998,7 @@ function sendPMact(target) {
 	let message = '\u0001ACTION '+util.format.apply(null, Array.prototype.slice.call(arguments, 1))+'\u0001';
 	if(settings.stripColors === true)
 		message = stripColorsAndStyle(message);
-	botF.ircSendCommandPRIVMSG(message, target);
+	bot.ircSendCommandPRIVMSG(message, target);
 }
 
 var SettingsConstructor = function (modified) {
@@ -2033,7 +2037,7 @@ var SettingsConstructor = function (modified) {
 
 // Add listeners to simpleMsg plugin
 function utilizeSimpleMsg() {
-	var simpleMsg = botObj.pluginData.simpleMsg.plugin;
+	var simpleMsg = bot.plugins.simpleMsg.plugin;
 
 	/* Unused listeners
 	simpleMsg.msgListenerAdd(pluginId, 'TOPIC', function (data) {});
@@ -2061,27 +2065,27 @@ function utilizeSimpleMsg() {
 	
 	simpleMsg.msgListenerAdd(pluginId, 'NICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " is now known as "+data.newnick, "NICK");
-		botF.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;35m --\x1b[0m "+data.nick+" is now known as "+data.newnick);
+		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;35m --\x1b[0m "+data.nick+" is now known as "+data.newnick);
 	});
 
 	simpleMsg.msgListenerAdd(pluginId, 'JOIN', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " has joined ", "JOIN");
-		botF.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;32m -->\x1b[0m "+data.nick+" has joined "+data.channel);
+		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;32m -->\x1b[0m "+data.nick+" has joined "+data.channel);
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'KICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " was kicked by "+data.by+" ("+data.reason+")", "KICK");
-		botF.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" was kicked by "+data.by+" from "+data.channel+" ("+data.reason+")");
+		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" was kicked by "+data.by+" from "+data.channel+" ("+data.reason+")");
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'PART', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " has left ", "PART");
-		botF.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has left "+data.channel+" "+(data.reason == null ? data.reason : ""));
+		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has left "+data.channel+" "+(data.reason == null ? data.reason : ""));
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'QUIT', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " has quit ("+data.reason+")", "QUIT");
-		botF.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has quit ("+data.reason+")");
+		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has quit ("+data.reason+")");
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'RAW', function (data) {
@@ -2096,7 +2100,7 @@ function utilizeSimpleMsg() {
 
 	//plugin is ready
 	exports.ready = true;
-	botF.emitBotEvent('botPluginReadyEvent', pluginId);
+	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 }
 
 // Handle "botEvent" from bot (botEvent is used for irc related activity)
@@ -2117,7 +2121,7 @@ module.exports.botEvent = function (event) {
 			}
 		}
 	} else if(event.eventName == "botReceivedNum005") {
-		botF.ircWriteData("MODE "+botInstanceSettings.botName+" +IB");
+		bot.ircWriteData("MODE "+botInstanceSettings.botName+" +IB");
 	} else if(event.eventName == "botPluginReadyEvent") {
 		if (event.eventData == 'simpleMsg') {
 			utilizeSimpleMsg();
@@ -2153,21 +2157,19 @@ module.exports.plugin = {
 module.exports.ready = false;
 
 //main function called when plugin is loaded
-module.exports.main = function (passedData) {
+module.exports.main = function (i, b) {
 	// Update variables
-	botObj = passedData.botObj;
-	pluginId = passedData.id;
-	botV = botObj.publicData.botVariables
-	botF = botObj.publicData.botFunctions;
-	botInstanceSettings = botObj.publicData.options;
+	bot = b;
+	pluginId = i;
+	botInstanceSettings = bot.options;
 	settings = botInstanceSettings.pluginsSettings[pluginId];
-	ircChannelUsers = botV.ircChannelUsers;
+	ircChannelUsers = bot.ircChannelUsers;
 
 	// If plugin settings are not defined, define them
 	if (settings === undefined) {
 		settings = new SettingsConstructor();
 		botInstanceSettings.pluginsSettings[pluginId] = settings;
-		botF.botSettingsSave();
+		bot.botSettingsSave();
 	}
 
 	NICK = botInstanceSettings.botName;
@@ -2192,10 +2194,10 @@ module.exports.main = function (passedData) {
 	console.log(splash);
 
 	// Plugin is ready
-	botF.emitBotEvent('botPluginReadyEvent', pluginId);
+	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 
 	if(settings.nBotLoggerOverride) {
-		botV.botInstanceEventHandles['PRIVMSG'] = function(connection, data) {
+		bot.botInstanceEventHandles.PRIVMSG = function(connection, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
@@ -2205,19 +2207,19 @@ module.exports.main = function (passedData) {
 			else
 				process.stdout.write('\x1b[1;32m['+connection+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;34m['+to+']\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;92m>\x1b[0m '+message);
 			process.stdout.write('\x0a');
-		}
+		};
 
-		botV.botInstanceEventHandles['NOTICE'] = function(connection, data) {
+		bot.botInstanceEventHandles.NOTICE = function(connection, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
 			process.stdout.write("\x1b[1G\x1b[K");
 			process.stdout.write('\x1b[1;32m['+connection+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;33m[NOTICE('+to+')]\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;32m>\x1b[0m '+message);
 			process.stdout.write('\x0a');
-		}
+		};
 	}
 	//check and utilize dependencies
-	if (botObj.pluginData.simpleMsg && botObj.pluginData.simpleMsg.ready)
+	if (bot.plugins.simpleMsg && bot.plugins.simpleMsg.ready)
 		utilizeSimpleMsg();
 };
 
