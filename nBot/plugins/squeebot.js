@@ -46,14 +46,11 @@ var airDate;
 // Notes:
 // Get hostname from sender: data.rawdata[0].split(' ')[0][1];
 
-// rules/infoc: Rules and information for individual channels.
-// botops: Bot operators with permission levels
-// ophosts: IMPORTANT! Currently, in order for botops to execute commands, their hostnames MUST be listed here!
-var squees = {
-	rules:{},
-	infoc:{},
-	botops:{"icydiamond":3},
-	ophosts:{}
+var administration = {
+	data: null,
+	file: "channel_administration.json",
+	nickserv_cache: {},
+	logins: {}
 };
 
 // Events
@@ -77,34 +74,19 @@ var commands = {
 				listCommands(nick, target, 1);
 				return;
 			}
-			var cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
-			if(cmdName in commands) {
-				var cmd = commands[cmdName];
-				if(cmd.description) {
-					sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd.description+("permlevel" in cmd ? " \u0002["+permstring(cmd.permlevel).toUpperCase()+"]" : ""));
-				} else {
-					if(cmd.alias) {
-						var cmd2 = commands[cmd.alias];
-						if(cmd2 != null && cmd2.description) {
-							sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f "+cmd2.description+("permlevel" in cmd2 ? " \u0002["+permstring(cmd2.permlevel).toUpperCase()+"]" : "")+" \u00037[ALIAS FOR \u00033"+cmd.alias+"\u00037]");
-							return;
-						}
-					}
-					sendPM(target, nick+": \u0002"+PREFIX+cmdName+"\u000f - No description :( "+("permlevel" in cmd ? " \u0002["+permstring(cmd.permlevel).toUpperCase()+"]" : ""));
-				}
-			} else {
-				sendPM(target, nick+": That is not a known command!");
-			}
+			let cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
+
+			commandHelp(cmdName, target, nick);
 		} else {
 			listCommands(nick, target);
 		}
-	}), description:"[command] - All Commands"},
+	}), description:"[command] - All Commands", categories: ["help"]},
 
 	"cmdsource":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1]) {
-			var cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
+			let cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
 			if(cmdName in commands) {
-				var cmd = commands[cmdName];
+				let cmd = commands[cmdName];
 				if("source" in cmd) {
 					sendPM(target, "Command \u00033"+cmdName+"\u000f is from plugin \u00037"+cmd.source);
 				} else {
@@ -116,7 +98,7 @@ var commands = {
 		} else {
 			listCommands(nick, target);
 		}
-	}), description:"[command] - Source plugin of this command", permlevel: 1},
+	}), description:"[command] - Source plugin of this command", permlevel: 1, categories: ["help"]},
 
 	"squeebot":{action: (function(simplified, nick, chan, message, pretty, target) {
 		sendPM(target, "Squeebot is a plugin for nBot (by nnnn20430) written by LunaSquee.");
@@ -128,16 +110,16 @@ var commands = {
 		if(pm) {
 			sendPM(target, "This command can only be executed in a channel.");
 		} else {
-			var channel = chan.toLowerCase();
-			if("infoc" in squees) {
-				if(channel in squees.infoc) {
-					sendPM(target, nick+": "+squees.infoc[channel]);
-					return;
-				}
+			let channel = chan.toLowerCase();
+			let thisConnection = administration.data.connections[botInstanceSettings.connectionName];
+			if(thisConnection[channel]) {
+				if(thisConnection[channel]["info"])
+					return sendPM(target, nick+": "+thisConnection[channel].info);
 			}
+
 			sendPM(target, "No information to display for "+chan);
 		}
-	}), description:"- Channel Information"},
+	}), description:"- Channel Information", categories: ["help"]},
 
 	"events":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, pm) {
 		if(simplified[1] && simplified[1].toLowerCase() == "refresh")
@@ -157,7 +139,7 @@ var commands = {
 				eEvents.push("\u00034"+t.eventName+"\u0003");
 		});
 		sendPM(target, "\u0002Events: \u000f"+eEvents.join(", "));
-	}), description:"- List events"},
+	}), description:"- List events", categories: ["community"]},
 
 	"event":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, pm) {
 		if(simplified[1] != null) {
@@ -187,20 +169,23 @@ var commands = {
 		} else {
 			sendPM(target, nick+": Not enough arguments! Usage: \u0002!event\u0002 <index/name>");
 		}
-	}), description:"[-d] <index/name> - Event information"},
+	}), description:"[-d] <index/name> - Event information", categories: ["community"]},
    
 	"rules":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, pm) {
 		if(pm) {
 			sendPM(target, "This command can only be executed in a channel.");
 		} else {
-			var channel = chan.toLowerCase();
-			var t = nick;
+			let channel = chan.toLowerCase();
+			let thisConnection = administration.data.connections[botInstanceSettings.connectionName];
+			let t = nick;
+			
 			if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 				t = simplified[1];
-			if("rules" in squees) {
-				if(channel in squees.rules) {
+
+			if(thisConnection[channel]) {
+				if(thisConnection[channel]["rules"]) {
 					sendPM(channel, t+": Channel Rules of "+chan+": ");
-					var rls = squees.rules[channel];
+					let rls = thisConnection[channel].rules;
 					if(typeof rls == "object") {
 						rls.forEach(function(e) {
 							sendPM(channel, "["+(rls.indexOf(e)+1)+"] "+e);
@@ -213,14 +198,14 @@ var commands = {
 			}
 			sendPM(target, "No rules to display for "+chan);
 		}
-	}), description:"- Channel Rules"},
+	}), description:"- Channel Rules", categories: ["help", "community"]},
 	
 	"yay":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": http://flutteryay.com");
 		else
 			sendPM(target, nick+": http://flutteryay.com");
-	})},
+	}), categories: ["fun"]},
 	
 	"date":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var date = ''; 
@@ -235,46 +220,62 @@ var commands = {
 				date = new Date().toString();
 		} 
 		sendPM(target, date);
-	})},
+	}), categories: ["util"]},
 
 	"squee":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=O1adNgZl_3Q");
-	})},
+	}), categories: ["fun"]},
 
 	"timetostop":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
 		else
 			sendPM(target, nick+": https://www.youtube.com/watch?v=2k0SmqbBIpQ");
-	})},
+	}), categories: ["fun"]},
 	
 	"banned":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": https://derpibooru.org/795478");
 		else
 			sendPM(target, nick+": https://derpibooru.org/795478");
-	})},
+	}), categories: ["fun"]},
 
 	"request":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
 		else
 			sendPM(target, nick+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
-	})},
+	}), categories: ["paraspriteradio", "community"]},
 
 	"hug":{action: (function(simplified, nick, chan, message, pretty, target) {
 		sendPMact(target, "hugs "+nick);
-	})},
+	}), categories: ["fun"]},
+
+	"randomhash":{action: (function(simplified, nick, chan, message, pretty, target) {
+		let nump = simplified[1] || 16;
+		
+		if(typeof(nump) != "number") {
+			nump = parseInt(nump);
+
+			if(isNaN(nump))
+				return sendPM(target, nick+": I am not aware of '"+simplified[1]+"' being an integer, sorry.");
+		}
+
+		if(nump > 126)
+			return sendPM(target, nick+": Requested hash is too long.");
+
+		sendPM(target, uid(nump, true));
+	}), categories: ["util"]},
 	
 	"episodes":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			sendPM(target, simplified[1]+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
 		else
 			sendPM(target, nick+": List of all MLP:FiM Episodes: http://mlp-episodes.tk/");
-	}),description:"- List of pony episodes"},
+	}),description:"- List of pony episodes", categories: ["mlp-episodes"]},
 	
 	"mc":{action: (function(simplified, nick, chan, message, pretty, target) {
 		//return sendPM(target, "\u000310[Minecraft] \u00034No servers.");
@@ -292,7 +293,7 @@ var commands = {
 			}
 			sendPM(target, msg);
 		}, reqplayers);
-	}), alias:"minecraft"},
+	}), alias:"minecraft", categories: ["community", "server"]},
 	
 	"mumble":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var requsers = false;
@@ -313,7 +314,7 @@ var commands = {
 			}
 			sendPM(target, msg);
 		}, requsers);
-	}), description:"[users/download] - Information about our Mumble Server"},
+	}), description:"[users/download] - Information about our Mumble Server", categories: ["community", "server"]},
 		
 	"episode":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var param = simplified[1]; 
@@ -328,7 +329,7 @@ var commands = {
 		} else {
 			sendPM(target, nick+": Please provide me with episode number and season, for example: !ep s4e4");
 		}
-	}),description:"s<Season>e<Episode Number> - Open a pony episode"},
+	}),description:"s<Season>e<Episode Number> - Open a pony episode", categories: ["mlp-episodes"]},
 
 	"viewers":{action: (function(simplified, nick, chan, message, pretty, target) {
 		livestreamViewerCount((function(r, a) { 
@@ -338,7 +339,7 @@ var commands = {
 				r = a;
 			sendPM(target, r+" \u00033Livestream: \u000312http://radio.djazz.se/#livestream");
 		}), 0);
-	}),alias: "livestream"},
+	}),alias: "livestream", categories: ["djazz", "community"]},
 
 	"np":{action: (function(simplified, nick, chan, message, pretty, target) {
 		getCurrentSong(function(d, e, i) { 
@@ -348,7 +349,7 @@ var commands = {
 				sendPM(target, d);
 			}
 		});
-	}), alias: "radio"},
+	}), alias: "radio", categories: ["paraspriteradio"]},
 
 	"l":{action: (function(simplified, nick, chan, message, pretty, target) {
 		getCurrentSong(function(d, e, i) { 
@@ -358,7 +359,7 @@ var commands = {
 				sendPM(target, d);
 			}
 		});
-	}), alias: "listeners"},
+	}), alias: "listeners", categories: ["paraspriteradio"]},
 
 	"nextep":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var counter = 0;
@@ -373,85 +374,16 @@ var commands = {
 			sendPM(target, /*(counter == 1 ? "First" : "Next") + */"Next Season "+settings.nextepisode.inSeason+" episode airs in %s", readableTime(timeLeft, true));
 		}
 		//commands["event"].action(["event", "episode"], nick, chan, message, pretty, target);
-	}),description:"- Time left until next pony episode."},
+	}),description:"- Time left until next pony episode.", categories: ["mlp-episodes"]},
 
-	"nothing":{description:"- Does absolutely nothing."},
+	"nothing":{description:"- Does absolutely nothing.", categories: ["fun"]},
 	"alpaca":{action: function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in bot.ircChannelUsrs[chan])
+		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			nick = simplified[1];
 
 		var rand = Math.floor(Math.random() * alpaca.length);
 		sendPM(target, nick+": http://jocketf.se/c/"+alpaca[rand]);
-	}, alias: 'alpacas'},
-
-	"squees":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		var hostas, nickz, level;
-		if(nick != "Diamond" && nick != "IcyDiamond" && nick != "LunaSquee")
-			return sendPM(target, nick+": I don't think so.");
-		if(simplified[1] === "save") {
-			squees_save(target);
-		} else if(simplified[1] === "load") {
-			squees_load(target);
-		} else if(simplified[1] === "add") {
-			if (simplified[2] === "host") {
-				hostas = message.split(' ').slice(3).join(' ');
-				if(hostas != null) {
-					if(hostas in squees.ophosts) 
-						sendPM(target, "Already there!");
-					else
-						squees.ophosts[hostas] = '';
-				} else {
-					sendPM(target, "Invalid hostname");
-				}
-			}
-		} else if(simplified[1] === "del") {
-			if (simplified[2] === "host") {
-				hostas = message.split(' ').slice(3).join(' ');
-				if(hostas != null) {
-					if(!(hostas in squees.ophosts))
-						sendPM(target, "Hostname not in list!");
-					else
-						delete squees.ophosts[hostas];
-				} else {
-					sendPM(target, "Invalid hostname");
-				}
-			}
-		} else if(simplified[1] === "promote") {
-			nickz = simplified[2];
-			level = 0;
-
-			if(parseInt(simplified[3])) {
-				level = parseInt(simplified[3]);
-			} else {
-				sendPM(target, "Invalid number '"+simplified[3]+"'");
-			}
-
-			if(nickz != null) {
-				squees.botops[nickz.toLowerCase()] = level;
-				sendPM(target, "Changed permlevel of user "+nickz+" to "+permstring(level));
-			} else {
-				sendPM(target, "Invalid nickname");
-			}
-		} else if(simplified[1] === "demote") {
-			nickz = simplified[2];
-			level = 0;
-
-			if(parseInt(simplified[3])) {
-				level = parseInt(simplified[3]);
-			} else {
-				sendPM(target, "Invalid number '"+simplified[3]+"'");
-			}
-
-			if(nickz != null) {
-				if (nickz.toLowerCase() in squees.botops) {
-					delete squees.botops[nickz.toLowerCase()];
-					sendPM(target, "Removed user "+nickz+" from list");
-				}
-			} else {
-				sendPM(target, "Invalid nickname");
-			}
-		}
-	}), description:"- Permission Management", "permlevel": 3},
+	}, alias: 'alpacas', categories: ["fun"]},
 
 	"plugin":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(simplified[1] == "load") {
@@ -472,74 +404,81 @@ var commands = {
 			bot.botPluginDisable(simplified[2]);
 			botInstanceSettings.plugins.arrayValueRemove(simplified[2]);
 		}
-	}), description:"<load/reload/reloadall/unload> [plugin] - Plugin management", "permlevel":3},
+	}), description:"<load/reload/reloadall/unload> [plugin] - Plugin management", permlevel:3, categories: ["admin"]},
 
 	"binary":{action: (function(simplified, nick, chan, message, data, target, isMentioned, isPM) {
-		var response = '', strArr, i, msg = '';
-		for (i in data.msgARGS) {
-			if (i > 1) {
-				msg += ' '+data.msgARGS[i];
-			}
-		}
-		msg = msg.substr(1);
-		switch (data.msgARGS[1] ? data.msgARGS[1].toUpperCase() : null) {
-			case 'ENCODE': strArr = msg.split('');
+		var response = '', strArr, i, msg = message.split(' ').slice(2).join(' ');
+
+		switch (simplified[1] ? simplified[1].toUpperCase() : null) {
+			case 'ENCODE': 
+				strArr = msg.split('');
+				
 				for (i in strArr) {
 					response += ' '+('0000000'+parseInt(new Buffer(strArr[i].toString(), 'utf8').toString('hex'), 16).toString(2)).slice(-8);
 				}
-				response=response.substr(1);
+				
+				response = response.substr(1);
+				
 				break;
-			case 'DECODE': msg=msg.split(' ').join('');
+			case 'DECODE': 
+				msg = msg.split(' ').join('');
 				i = 0;
+				
 				while (8*(i+1) <= msg.length) {
 					response += new Buffer(parseInt(msg.substr(8*i, 8), 2).toString(16), 'hex').toString('utf8'); i++;
 				}
+				
 				response = "Decoded: "+response;
 			}
 		sendPM(target, response);
-	}), description: "<ENCODE/DECODE> <message> - Encode/decode binary (ASCII)"},
+	}), description: "<ENCODE/DECODE> <message> - Encode/decode binary (ASCII)", categories: ["util"]},
 
 	"evaljs":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		eval("(function () {"+message.split(" ").slice(1).join(" ")+"})")();
-	}), description:"<code> - Run javascript code.", "permlevel":3},
+	}), description:"<code> - Run javascript code.", "permlevel":10, categories: ["admin"]},
 
 	"echo":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		sendPM(target, bot.strReplaceEscapeSequences(pretty.messageARGS[1]));
-	}), description:"<msg> - Echo back.", "permlevel":2},
+	}), description:"<msg> - Echo back.", "permlevel":2, categories: ["admin"]},
 
 	"convertseconds":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(parseInt(simplified[1]))
 			sendPM(target, readableTime(parseInt(simplified[1]), true));
 		else
 			sendPM(target, "Invalid number");
-	}), description:"<seconds> - Convert seconds to years days hours minutes seconds."},
+	}), description:"<seconds> - Convert seconds to years days hours minutes seconds.", categories: ["util"]},
 
 	"converttime":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(simplified[1] != null)
 			sendPM(target, parseTimeToSeconds(message.substring(PREFIX.length+11-(isPM ? 0 : 1))) + " seconds");
 		else
 			sendPM(target, "Invalid string");
-	}), description:"<years>y <weeks>w <days>d <hours>h <minutes>m <seconds>s - Convert ywdhms to seconds."},
+	}), description:"<years>y <weeks>w <days>d <hours>h <minutes>m <seconds>s - Convert ywdhms to seconds.", categories: ["util"]},
 
 	"say":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
 			sendPM(channel, bot.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
-	}), description:"<channel> <msg> - Say in channel as bot.", "permlevel":2},
+	}), description:"<channel> <msg> - Say in channel as bot.", "permlevel":2, categories: ["admin"]},
 
 	"act":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
 		if(channel != null)
 			sendPMact(channel, bot.strReplaceEscapeSequences(message.split(" ").slice(2).join(" ")));
-	}), description:"<channel> <msg> - Act in channel as bot.", "permlevel":2},
+	}), description:"<channel> <msg> - Act in channel as bot.", "permlevel":2, categories: ["admin"]},
 
 	"permlevel":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		if(simplified[1] && simplified[1].toLowerCase() in squees.botops) {
-			sendPM(target, simplified[1]+" is "+permstring(squees.botops[simplified[1].toLowerCase()]));
-		} else {
-			sendPM(target, "Not in list.");
-		}
-	})},
+		let targ = simplified[1] != null ? simplified[1] : nick;
+
+		administration.fetchPermission(chan, targ).then(function(p) {
+			sendPM(target, nick+": "+targ+" is a "+permstring(p.level));
+		}, function() {
+			if(targ == nick)
+				sendPM(target, nick+": You have no special privilege in this channel.");
+			else
+				sendPM(target, nick+": "+targ+" has no special privilege in this channel.");
+		});
+	}), categories: ["help"]},
 
 	"skip":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
 		if(settings.paraspritekey == null) return;
@@ -554,7 +493,7 @@ var commands = {
 				}
 			}
 		});
-	}),description:"- Skip the current song.", "permlevel":1},
+	}),description:"- Skip the current song.", "permlevel":1, categories: ["paraspriteradio", "pradmin"]},
 
 	"announce":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
 		if(settings.paraspritekey == null) return;
@@ -576,7 +515,7 @@ var commands = {
 				}
 			}
 		});
-	}),description:"[say:]<message> - Play an announcement on radio.", "permlevel":1},
+	}),description:"[say:]<message> - Play an announcement on radio.", permlevel:1, categories: ["paraspriteradio", "pradmin"]},
 
 	"queue":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
 		var det;
@@ -619,7 +558,7 @@ var commands = {
 				}
 			}
 		});
-	}),description:"<file/url> - Queue a song.", "permlevel":1},
+	}),description:"<file/url> - Queue a song.", permlevel:1, categories: ["paraspriteradio", "pradmin"]},
 
 	"sh":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(settings.allowShell === false) {
@@ -647,7 +586,7 @@ var commands = {
 			}
 		});
 
-	}), description:"<command> - icypi shell command.", "permlevel":3},
+	}), description:"<command> - icypi shell command.", "permlevel":10, categories: ["admin"]},
 
 	"icypi":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(settings.allowShell === false) {
@@ -671,21 +610,21 @@ var commands = {
 				mylog(error1);
 			}
 		});
-	}), description:"- icypi status report."},
+	}), description:"- icypi status report.", categories: ["help"]},
 
 	"randomsentence":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		postJSON("http://watchout4snakes.com/wo4snakes/Random/NewRandomSentence", {}, 
+		HTTPPost("http://watchout4snakes.com/wo4snakes/Random/NewRandomSentence", {}, 
 			function(e, c, p) { 
 				sendPM(target, c);
 			});
-	}), description:"- Generate a random sentence."},
+	}), description:"- Generate a random sentence.", categories: ["fun"]},
 
 	"randomword":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
-		postJSON("http://watchout4snakes.com/wo4snakes/Random/RandomWord", {}, 
+		HTTPPost("http://watchout4snakes.com/wo4snakes/Random/RandomWord", {}, 
 			function(e, c, p) { 
 				sendPM(target, c);
 			});
-	}), description:"- Get a random word."},
+	}), description:"- Get a random word.", categories: ["fun"]},
 
 	"aliases": {action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(!simplified[1]) {
@@ -715,7 +654,7 @@ var commands = {
 		}
 
 		sendPM(target, "Aliases for \u00033"+simplified[1].toLowerCase()+"\u0003: "+aliases.join(", "));
-	}), description:"<command> - Find aliases for this command."},
+	}), description:"<command> - Find aliases for this command.", categories: ["help"]},
 
 	"responselist": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(simplified[1] == null)
@@ -724,7 +663,7 @@ var commands = {
 			return response_list_load(simplified[2]);
 		if(simplified[1] == 'save')
 			return response_list_save();
-	}), permlevel: 3},
+	}), permlevel: 3, categories: ["admin"]},
 
 	"youtube": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		let betr = message.split(' ');
@@ -739,7 +678,19 @@ var commands = {
 			return sendPM(target, nick+": Please provide a valid video url or ID!");
 		
 		getYoutubeFromVideo(vid, target);
-	}),  description:"<link/id> - YouTube video information."},
+	}),  description:"<link/id> - YouTube video information.", categories: ["help"]},
+
+	"admin": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		if(!simplified[1]) return;
+		switch(simplified[1].toLowerCase()) {
+			case "load":
+				administration.loadFile(target);
+				break;
+			case "save":
+				administration.saveFile(target);
+				break;
+		}
+	}), permlevel: 3, categories: ["admin"]},
 
 	"listeners":{action: (function() {commands.l.action.apply(null, arguments);}), description: "- Number of people listening to Parasprite Radio"},
 	"radio":{action: (function() {commands.np.action.apply(null, arguments);}), description: "- Current song on Parasprite Radio"},
@@ -872,8 +823,11 @@ function synccalendar(no) {
 		return;
 
 	sEvents = [];
-	fetchCalendar(settings.calendars.squeebot, null, 30*24*60*60*1000);
-	fetchCalendar(settings.calendars.parasprite, "An event on Parasprite Radio.", 14*24*60*60*1000);
+	for(let e in settings.calendars) {
+		let calendar = settings.calendars[e];
+
+		fetchCalendar(calendar.url, calendar.forceEventDescription, calendar.timeframe);
+	}
 
 	if(no == null)
 		setTimeout(synccalendar, 300000);
@@ -912,28 +866,6 @@ function isOpOnChannel(user, channel) {
 	return isUserChanOp;
 }
 
-// Check if nick is a bot operator
-function isGlobalOp(hostsa) {
-	hostsa = hostsa.substring(1).split("!");
-	if("ophosts" in squees && "botops" in squees) {
-		if(hostsa[1] in squees.ophosts && hostsa[0].toLowerCase() in squees.botops) {
-			return true;
-		}
-	}
-	return false;
-}
-
-// Return the hostname's permission level (nickname!username@hostname)
-function permlevel(hostsa) {
-	hostsa = (hostsa.indexOf(":") === 0 ? hostsa.substring(1) : hostsa).split("!");
-	if("ophosts" in squees && "botops" in squees) {
-		if(hostsa[1] in squees.ophosts && hostsa[0].toLowerCase() in squees.botops) {
-			return squees.botops[hostsa[0].toLowerCase()];
-		}
-	}
-	return 0;
-}
-
 // String representation of a permission level
 function permstring(level, color) {
 	var str = "";
@@ -946,6 +878,9 @@ function permstring(level, color) {
 			break;
 		case 3:
 			str = "Admin";
+			break;
+		case 10:
+			str = "SuperUser";
 			break;
 		default:
 			str = "User";
@@ -1291,6 +1226,33 @@ function listCommands(nick, target, all) {
 	sendWithDelay(comms, target, 1000);
 }
 
+// Create a command response for !help [command]
+function commandHelp(commandName, target, nick, aliased) {
+	let commandObj = commands[commandName];
+	if(!commandObj) return sendPM(target, nick+": That is not a known command!");
+
+	if(aliased != null) commandName = aliased;
+	let stringstream = nick+": \u0002"+PREFIX+commandName+"\u000f ";
+
+	if(commandObj.subcommands)
+		stringstream += "["+joinObjectKeys(commandObj.subcommands, '|')+"] ";
+
+	if(commandObj.description)
+		stringstream += commandObj.description;
+	else if(!commandObj.description && commandObj.alias)
+		return commandHelp(commandObj.alias, target, nick, commandName);
+	else
+		stringstream += "- No description :(";
+
+	if(commandObj.permlevel)
+		stringstream += " \u0002["+permstring(commandObj.permlevel).toUpperCase()+"]\u000f";
+
+	if(commandObj.alias)
+		stringstream += " \u0002\u00037[ALIAS FOR \u00033"+commandObj.alias+"\u00037]\u000f";
+
+	sendPM(target, stringstream);
+}
+
 // Send an array of messages with a delay
 function sendWithDelay(messages, target, time) {
 	function sendMessageDelayed(c, arri, timeout) {
@@ -1351,7 +1313,7 @@ function fetchJSON(link, callback, extendedHeaders) {
 var getJSON = fetchJSON; // Just for the sake of making sense
 
 // POST data to an url, expects a JSON response ("http://host:port/data", {heads: null}, function(error, data, res) {  }, {\"x-toast\": true})
-function postJSON(link, postdata, callback, headers) {
+function HTTPPost(link, postdata, callback, headers) {
 	var parsed = url.parse(link);
 	var post_data = qs.stringify(postdata);
 	var post_options = {
@@ -1591,11 +1553,6 @@ function derpibooru_handle(id, target, nick) {
 			if("tags" in content) {
 				let taglist = content.tags.split(", ");
 				sendPM(target, "\u000312Derpibooru\u00039 >>"+id+" \u00037★ "+addCommas(content.faves.toString())+" \u00039▲ "+addCommas(content.upvotes.toString())+" \u00034▼ "+addCommas(content.downvotes.toString())+" "+DBTagConstruct(taglist));
-/*				if(taglist.indexOf("explicit") !== -1) {
-					if(target.indexOf("#") === 0) {
-						bot.ircWriteData("KICK "+target+" "+nick+" :Do not post NSFW images in chat.");
-					}
-				}*/
 			}
 		}
 	});
@@ -1644,8 +1601,8 @@ function getSpotifySongFromID(id, target) {
 // See if event is currently running (UTC timestamps)
 // 0: not started yet, 1: running, 2: over
 function currentRunCheck(startstamp, endstamp) {
-	var date = new Date();
-	var currentStamp = Math.floor(new Date(date.toUTCString()).getTime() / 1000);
+	let date = new Date();
+	let currentStamp = Math.floor(new Date(date.toUTCString()).getTime() / 1000);
 	if(endstamp === 0) {
 		if(currentStamp >= startstamp) {
 			return 1;
@@ -1729,34 +1686,77 @@ function livestreamViewerCount(callback, stream, streamer) {
 	}
 }
 
+// Join the keys of an object
+function joinObjectKeys(object, joinWith, prefix, suffix) {
+	if(!prefix) prefix = "";
+	if(!suffix) suffix = "";
+	if(!joinWith) joinWith = ", ";
+	let keyList = [];
+	for(let key in object)
+		keyList.push(prefix+key+suffix);
+	return keyList.join(joinWith);
+}
+
+// Command handling of the next level.
+// Yes, its a recursive subcommand handler as well, wow.
+function commandDance(command, target, nick, chan, message, pretty, simplified, isMentioned, isPM) {
+	if(!command) return;
+
+	if(command.permlevel) {
+		administration.fetchPermission(chan, nick).then(function(pl) {
+			if(pl.level < command.permlevel)
+				return sendPM(target, nick+": You do not have permission to execute this command!");
+
+			if(command.subcommands && simplified[1]) {
+				if(command.subcommands[simplified[1].toLowerCase()])
+					commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
+						pretty, simplified.slice(1), isMentioned, isPM)
+
+			} else if(command["action"]) {
+				command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+			}
+		}, function(res) {
+			mylog(nick+" was denied permission ("+res+")");
+			sendPM(target, nick+": You do not have permission to execute this command!");
+		});
+	} else {
+		if(command.subcommands) {
+			if(command.subcommands[simplified[1].toLowerCase()])
+				commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
+					pretty, simplified, isMentioned, isPM)
+
+		} else if(command.action) {
+			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+		}
+	}
+}
+
 // Handles messages
 function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isPM) {
 	let target = isPM ? nick : chan;
 	let hirex = new RegExp("(hi|hey|hai|hello|hiya),? "+NICK, 'gim');
 	let hugrex = new RegExp("\x01ACTION hugs "+NICK, 'gim');
-	let spotrex = "";
-	if(simplified[0].indexOf(PREFIX) === 0 && simplified[0].toLowerCase().substring(PREFIX.length) in commands) {
-		let permission = permlevel(pretty.rawdata[0].split(' ')[0]);
-		let command = commands[simplified[0].toLowerCase().substring(PREFIX.length)];
-		if("permlevel" in command) {
-			if(permission < command.permlevel) {
-				sendPM(target, nick+": You do not have permission to execute this command!");
-				return;
-			}
+	let spotrex = null;
+	let command = (simplified[0] != null ? simplified[0] : "").toLowerCase();
+
+	if((command.indexOf(PREFIX) === 0 && command.substring(PREFIX.length) in commands) || 
+			(isPM && simplified[0].toLowerCase() in commands)) {
+
+		if(isPM) {
+			chan = null;
+
+			// Optional prefix in case of a private message
+			if(command.indexOf(PREFIX) == 0)
+				command = commands[command.substring(PREFIX.length)];
+			else
+				command = commands[command];
+		} else {
+			command = commands[command.substring(PREFIX.length)];
 		}
-		if("action" in command)
-			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
-	} else if(isPM && simplified[0].toLowerCase() in commands) {
-		let permission = permlevel(pretty.rawdata[0].split(' ')[0]);
-		let command = commands[simplified[0].toLowerCase()];
-		if("permlevel" in command) {
-			if(permission < command.permlevel) {
-				sendPM(target, nick+": You do not have permission to execute this command!");
-				return;
-			}
-		}
-		if("action" in command)
-			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+
+		if(typeof(command) != 'object') return;
+
+		commandDance(command, target, nick, chan, message, pretty, simplified, isMentioned, isPM);
 	} else if(hirex.exec(message) != null) {
 		sendPMSD(target, "Hey "+nick+"!!");
 	} else if(hugrex.exec(message) != null) {
@@ -1766,10 +1766,8 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 	} else if(findUrls(message).length > 0) {
 		let link = findUrls(message)[0]; // Only handle the first link provided
 		for(let handle in urls) {
-			if(link.indexOf(handle) != -1) {
+			if(link.indexOf(handle) != -1)
 				urls[handle].action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
-				break;
-			}
 		}
 	} else {
 		let mesgmatcher = message.toLowerCase().replace(/\:|\,|\'|\!|\?|\./g, ' ').trim().split(' ');
@@ -1907,31 +1905,140 @@ function ircRelayServer() {
 	});
 }
 
-// Save variables of squees
-function squees_save(channel) {
-	let json_en = JSON.stringify(squees);
-	let savStart = Date.now() / 1000;
-	if(json_en) {
-		fs.writeFile(squeeDir+'savedvars.json', json_en, function (err) {
-			if (err) return mylog(err);
-			if(channel === false)
-				mylog('Variables object saved. Took '+readableTime(savStart - Date.now() / 1000));
-			else
-				sendPM(channel, "Squees object saved in "+readableTime(savStart -Date.now() / 1000));
-		});
-	}
+/* 
+ * Administration system 
+**/
+
+administration.loadFile = function(channel, callback) {
+	fs.readFile(squeeDir + administration.file, 'utf8', function (err, data) {
+		if (err) {
+			info("Administration data failed to load. Initialized a blank one.");
+
+			administration.data = {superuser: null, connections: {}};
+			administration.data.connections[botInstanceSettings.connectionName] = {};
+			
+			if(err.code === 'ENOENT')
+				administration.saveFile();
+
+			return;
+		}
+		
+		administration.data = JSON.parse(data);
+		if(!administration.data.connections[botInstanceSettings.connectionName]) {
+			administration.data.connections[botInstanceSettings.connectionName] = {};
+			administration.saveFile();
+		}
+
+		if (channel)
+			sendPM(channel, "Administration data loaded!");
+		else
+			info('Administration data loaded.');
+	});
 }
 
-// Load variables of squees
-function squees_load(channel) {
-	fs.readFile(squeeDir+'savedvars.json', 'utf8', function (err, data) {
-		if (err) return;
-		squees = JSON.parse(data);
-		if (channel === false)
-			info('Variables object loaded.');
-		else
-			sendPM(channel, "Squees object loaded!");
+administration.saveFile = function(channel, callback) {
+	if(typeof(channel) == 'function') {
+		callback = channel;
+		channel = null;
+	}
+
+	fs.writeFile(squeeDir + administration.file, JSON.stringify(administration.data, null, '\t'), function (err) {
+		if (err) throw err;
+		
+		if (channel)
+			sendPM(channel, "Administration data saved!");
+
+		if (callback !== undefined) {
+			callback();
+		}
 	});
+}
+
+// Check if user is logged in via NickServ
+administration.nickservCheck = function(nickname) {
+	let thisConnection = administration.data.connections[botInstanceSettings.connectionName];
+	let nscomm = thisConnection.nickserv_command || "STATUS";
+	let apromise = new Promise((fulfill, reject) => {
+		if(administration.nickserv_cache[nickname] != null) {
+			return fulfill(nickname);
+		}
+
+		sendPM("NickServ", nscomm+" "+nickname);
+		bot.ircResponseListenerAdd(pluginId, 'NOTICE', function(data) {
+			if(data[0].indexOf(nscomm.toUpperCase()) != -1 && data[1][0].toUpperCase() == "NICKSERV")
+				return true;
+			else
+				reject(nickname);
+		}, function(data) {
+			if (data[3][3] == '3') {
+				fulfill(nickname);
+				administration.nickserv_cache[nickname] = true;
+			} else {
+				reject(nickname);
+			}
+		}, 10);
+	});
+
+	return apromise;
+}
+
+administration.fetchPermission = function(channel, nickname) {
+	if(!administration.data)
+		return new Promise((fulfill, reject) => { reject("confused"); });
+
+	let thisConnection = administration.data.connections[botInstanceSettings.connectionName];
+	let apromise = new Promise((fulfill, reject) => {
+		let checkChan = true;
+		let nickMatch = null;
+
+		// Check if nickname is superuser.
+		if(administration.data.superuser.nickname == nickname) {
+			nickMatch = administration.data.superuser;
+			checkChan = false;
+		}
+
+		// Check if connection has a global list
+		if(thisConnection["global"]) {
+			for(let i in thisConnection.global) {
+				let perm = thisConnection.global[i];
+				if(perm.nickname == nickname)
+					nickMatch = perm;
+			}
+
+			if(nickMatch)
+				checkChan = false;
+		}
+
+		// If we're told to check channel, do that
+		if(checkChan) {
+			if(!thisConnection[channel])
+				return reject("nochannel");
+
+			let chan = thisConnection[channel];
+
+			for(let i in chan.permissions) {
+				let perm = chan.permissions[i];
+				if(perm.nickname == nickname)
+					nickMatch = perm;
+			}
+		}
+
+		// If there is no nick selected, reject
+		if(!nickMatch)
+			return reject("nonick");
+
+		// If we're told to check NickServ login, do that
+		if(nickMatch.nickserv) {
+			administration.nickservCheck(nickname).then(function() {
+				fulfill(nickMatch);
+			}, function() {
+				reject("not authed");
+			});
+			return;
+		}
+	});
+
+	return apromise;
 }
 
 // Save response list
@@ -2012,6 +2119,7 @@ var SettingsConstructor = function (modified) {
 			stripColors: false,
 			allowShell: false,
 			nBotLoggerOverride: true,
+			calendars: [],
 			nextepisode: {
 				date: [2016, 2, 26, 16, 0, 0], 
 				countTimes: 26, 
@@ -2066,6 +2174,9 @@ function utilizeSimpleMsg() {
 	simpleMsg.msgListenerAdd(pluginId, 'NICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " is now known as "+data.newnick, "NICK");
 		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;35m --\x1b[0m "+data.nick+" is now known as "+data.newnick);
+
+		if(administration.nickserv_cache[data.nick])
+			delete administration.nickserv_cache[data.nick];
 	});
 
 	simpleMsg.msgListenerAdd(pluginId, 'JOIN', function (data) {
@@ -2076,16 +2187,25 @@ function utilizeSimpleMsg() {
 	simpleMsg.msgListenerAdd(pluginId, 'KICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " was kicked by "+data.by+" ("+data.reason+")", "KICK");
 		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" was kicked by "+data.by+" from "+data.channel+" ("+data.reason+")");
+		
+		if(administration.nickserv_cache[data.nick])
+			delete administration.nickserv_cache[data.nick];
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'PART', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " has left ", "PART");
 		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has left "+data.channel+" "+(data.reason == null ? data.reason : ""));
+		
+		if(administration.nickserv_cache[data.nick])
+			delete administration.nickserv_cache[data.nick];
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'QUIT', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " has quit ("+data.reason+")", "QUIT");
 		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has quit ("+data.reason+")");
+
+		if(administration.nickserv_cache[data.nick])
+			delete administration.nickserv_cache[data.nick];
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'RAW', function (data) {
@@ -2142,14 +2262,13 @@ module.exports.plugin = {
 		mylog("\x1b[1;35m -!-\x1b[0m "+plugin+" Added command \""+commandName+"\" to "+pluginId+".");
 		return commands[commandName];
 	},
-	isGlobalOp: isGlobalOp,
+	administration: administration,
 	isOpOnChannel: isOpOnChannel,
-	permlevel: permlevel,
 	sendPM: sendPM,
 	sendPMSD: sendPMSD,
 	sendNOTICE: sendNOTICE,
 	fetchJSON: fetchJSON,
-	postJSON: postJSON,
+	HTTPPost: HTTPPost,
 	readableTime: readableTime,
 	parseTimeToSeconds: parseTimeToSeconds
 };
@@ -2180,7 +2299,7 @@ module.exports.main = function (i, b) {
 	airDate = Date.UTC(tr.date[0], tr.date[1], tr.date[2], tr.date[3], tr.date[4], tr.date[5]); 
 
 	// Load bot variables
-	squees_load(false);
+	administration.loadFile();
 
 	// Load response lists
 	response_list_load(responses);
