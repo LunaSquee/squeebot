@@ -76,7 +76,7 @@ var commands = {
 			}
 			let cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
 
-			commandHelp(cmdName, target, nick);
+			commandHelp(cmdName, simplified, target, nick);
 		} else {
 			listCommands(nick, target);
 		}
@@ -1227,12 +1227,24 @@ function listCommands(nick, target, all) {
 }
 
 // Create a command response for !help [command]
-function commandHelp(commandName, target, nick, aliased) {
+function commandHelp(commandName, simplified, target, nick, aliased) {
 	let commandObj = commands[commandName];
+	let appendAliasCmd = null;
+
+	if(simplified[2] && commandObj.subcommands) {
+		if(commandObj.subcommands[simplified[2].toLowerCase()]) {
+			appendAliasCmd = simplified[2].toLowerCase();
+			commandObj = commandObj.subcommands[appendAliasCmd];
+		}
+	}
+
 	if(!commandObj) return sendPM(target, nick+": That is not a known command!");
 
 	if(aliased != null) commandName = aliased;
 	let stringstream = nick+": \u0002"+PREFIX+commandName+"\u000f ";
+
+	if(appendAliasCmd)
+		stringstream += "\u0002"+appendAliasCmd+"\u000f ";
 
 	if(commandObj.subcommands)
 		stringstream += "["+joinObjectKeys(commandObj.subcommands, '|')+"] ";
@@ -1712,7 +1724,7 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 					commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
 						pretty, simplified.slice(1), isMentioned, isPM)
 
-			} else if(command["action"]) {
+			} else if(command.action) {
 				command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
 			}
 		}, function(res) {
@@ -1720,10 +1732,10 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 			sendPM(target, nick+": You do not have permission to execute this command!");
 		});
 	} else {
-		if(command.subcommands) {
+		if(command.subcommands && simplified[1]) {
 			if(command.subcommands[simplified[1].toLowerCase()])
 				commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
-					pretty, simplified, isMentioned, isPM)
+					pretty, simplified.slice(1), isMentioned, isPM)
 
 		} else if(command.action) {
 			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
@@ -2262,6 +2274,23 @@ module.exports.plugin = {
 		mylog("\x1b[1;35m -!-\x1b[0m "+plugin+" Added command \""+commandName+"\" to "+pluginId+".");
 		return commands[commandName];
 	},
+	commandAddSubcommand: function(plugin, commandName, subCommandName, action, description, perlevel) {
+		let commandStruct = commands[commandName];
+		if(!commandStruct)
+			return null;
+
+		if(!commands[commandName].subcommands)
+			commands[commandName].subcommands = {};
+
+		let subCommandStruct = commands[commandName].subcommands[subCommandName] = {source: plugin, action: action};
+
+		if(perlevel != null)
+			subCommandStruct.permlevel = perlevel;
+		if(description != null)
+			subCommandStruct.description = description;
+		return subCommandStruct;
+	},
+	mylog: mylog,
 	administration: administration,
 	isOpOnChannel: isOpOnChannel,
 	sendPM: sendPM,

@@ -7,35 +7,31 @@
 // ~ LunaSquee
 
 "use strict";
-//reserved nBot variables
+// reserved nBot variables
 var bot;
 var pluginId;
 var settings;
 var pluginSettings;
 var ircChannelUsers;
 
-//variables
-var http = require('http');
-var net = require('net');
-var fs = require('fs');
-var util = require('util');
-var events = require('events');
-var exec = require('child_process').exec;
-var path = require('path');
-var Entities = require('html-entities').AllHtmlEntities;
+// requires
+const twitterAPI = require('node-twitter-api'),
+	  HTMLEntities = require('html-entities').AllHtmlEntities,
+	  entities = new HTMLEntities();
 
-var entities = new Entities();
+// Twitter data
+let twitter,
+	twitterData = {},
+	twitStreams = {},
+	twitClient,
+	twitClientSec;
 
-var twitterAPI = require('node-twitter-api');
-var twitter;
-var twitterData = {};
+// Plugin state
+let pluginDisabled = false;
 
-var twitClient;
-var twitClientSec;
-
-var twitStreams = {};
-
-var pluginDisabled = false;
+// Squeebot functions
+let sendPM = null,
+	log = null;
 
 //settings constructor
 var SettingsConstructor = function (modified) {
@@ -58,12 +54,12 @@ var SettingsConstructor = function (modified) {
 
 function addCommas(nStr) {
 	nStr += '';
-	var x = nStr.split('.');
-	var x1 = x[0];
-	var x2 = x.length > 1 ? '.' + x[1] : '';
-	var rgx = /(\d+)(\d{3})/;
+	let x = nStr.split('.');
+	let x1 = x[0];
+	let x2 = x.length > 1 ? '.' + x[1] : '';
+	let rgx = /(\d+)(\d{3})/;
 	while (rgx.test(x1)) {
-	    x1 = x1.replace(rgx, '$1' + ',' + '$2');
+		x1 = x1.replace(rgx, '$1' + ',' + '$2');
 	}
 	return x1 + x2;
 }
@@ -76,10 +72,10 @@ var TwitterTracker = function(userid, channels) {
 	this.channels = channels;
 	this.userid = userid;
 	this.user_handle = null;
-	this.recvData = function(error, data) {
+	this.recvData = (error, data) => {
 		this.reconnTries = 0;
 		if(error) {
-			console.log('\x1b[1;35m --\x1b[0m Twitter stream of ['+userid+'] errored!');
+			log('\x1b[1;35m --\x1b[0m Twitter stream of ['+userid+'] errored!');
 			console.log(error);
 		} else {
 			if("id_str" in data) {
@@ -88,52 +84,50 @@ var TwitterTracker = function(userid, channels) {
 				if(data.in_reply_to_status_id === null && data.in_reply_to_user_id === null) {
 					if(data.text.indexOf("RT") === 0 && data.user.screen_name != this.user_handle)
 						return;
-					channels.forEach(function(u) {
+					channels.forEach((u) => {
 						pluginObj.sendTweetResponse(data.id_str, u, 1);
 					});
 				}
 			}
 		}
 	};
-	this.recvFail = function(e) {
-		var self = this;
-		console.log('\x1b[1;35m --\x1b[0m Twitter stream of ['+userid+'] ended!');
-		self.stream = null;
-		self.live = false;
-		if (self.closeRequested === false && pluginDisabled === false) {
-			if(self.reconnTries >= 3) {
-				console.log("\x1b[1;35m --\x1b[0m Max reconnect tries reached! Gave up.");
+	this.recvFail = (e) => {
+		log('\x1b[1;35m --\x1b[0m Twitter stream of ['+userid+'] ended!');
+		this.stream = null;
+		this.live = false;
+		if (this.closeRequested === false && pluginDisabled === false) {
+			if(this.reconnTries >= 3) {
+				log("\x1b[1;35m --\x1b[0m Max reconnect tries reached! Gave up.");
 				self.closeRequested = true;
 				return;
 			}
-			self.reconnTries += 1;
-			console.log("\x1b[1;35m --\x1b[0m Twitter stream reconnecting in 5s");
-			setTimeout(function() {
-				self.init();
+			this.reconnTries += 1;
+			log("\x1b[1;35m --\x1b[0m Twitter stream reconnecting in 5s");
+			setTimeout(() => {
+				this.init();
 			}, 5000);
 		}
 	};
-	this.init = function() {
-		console.log('\x1b[1;35m --\x1b[0m Twitter stream for '+userid+' starting, reporting on '+channels.length+' channels');
-		var self = this;
+	this.init = () => {
+		log('\x1b[1;35m --\x1b[0m Twitter stream for '+userid+' starting, reporting on '+channels.length+' channels');
 		this.live = true;
 		
-		twitter.users('show', {user_id: self.userid}, twitClient, twitClientSec, function(error, data, response) {
+		twitter.users('show', {user_id: this.userid}, twitClient, twitClientSec, (error, data, response) => {
 			if(error) {
-				self.user_handle = null;
+				this.user_handle = null;
 			} else {
-				self.user_handle = data.screen_name;
+				this.user_handle = data.screen_name;
 			}
 		});
 
-		this.stream = twitter.getStream('filter', {follow: userid}, twitClient, twitClientSec, function(e, d) {
-			self.recvData(e, d);
-		}, function(e) {
-			self.recvFail(e);
+		this.stream = twitter.getStream('filter', {follow: userid}, twitClient, twitClientSec, (e, d) => {
+			this.recvData(e, d);
+		}, (e) => {
+			this.recvFail(e);
 		});
 	};
 
-	this.kill = function() {
+	this.kill = () => {
 		this.closeRequested = true;
 		if(this.stream) {
 			this.stream.end();
@@ -147,18 +141,18 @@ var pluginObj = {
 	sendTweetResponse: function(tweetId, target, showTwo) {
 		twitter.statuses("show", {id:tweetId}, twitClient, twitClientSec, function(err, data){
 			if(err) {
-				bot.ircSendCommandPRIVMSG("Status fetch failed!", target);
+				sendPM(target, "Status fetch failed!");
 			} else {
-				bot.ircSendCommandPRIVMSG("\u000310Twitter\u0003 \u0002@"+data.user.screen_name+"\u0002: "+entities.decode(data.text).replace(/\n/g, ' ').trim(), target);
+				sendPM(target, "\u000310Twitter\u0003 \u0002@"+data.user.screen_name+"\u0002: "+entities.decode(data.text).replace(/\n/g, ' ').trim());
 				if(showTwo == 1)
-					bot.ircSendCommandPRIVMSG("\u0002Link to tweet:\u0002 https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str, target);
+					sendPM(target, "\u0002Link to tweet:\u0002 https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str);
 			}
 		});
 	},
 	twitStreamsInit: function() {
-		console.log('\x1b[1;35m --\x1b[0m Twitter streams initiating');
-		for(var trackUID in pluginSettings.tweetTrack) {
-			var channels = pluginSettings.tweetTrack[trackUID];
+		log('\x1b[1;35m --\x1b[0m Twitter streams initiating');
+		for(let trackUID in pluginSettings.tweetTrack) {
+			let channels = pluginSettings.tweetTrack[trackUID];
 			if(twitStreams[trackUID] != null)
 				twitStreams[trackUID].kill();
 			twitStreams[trackUID] = new TwitterTracker(trackUID, channels);
@@ -167,313 +161,305 @@ var pluginObj = {
 	},
 	sendTweet: function(nick, msg, target) {
 		if('tokens-'+nick.toLowerCase() in twitterData) {
-			var dats = twitterData['tokens-'+nick.toLowerCase()];
-			var etr = {status:msg};
-			var tester;
+			let dats = twitterData['tokens-'+nick.toLowerCase()];
+			let etr = {status:msg};
+			let tester;
 			if((tester = msg.match(/R:(\d+[^\w\s]*)/)) != null) {
 				etr.in_reply_to_status_id = tester[1];
 				etr.status = etr.status.replace(tester[0], '');
 			}
 			twitter.statuses("update", etr, dats.acc, dats.accsec, function(err, data){
 				if(err) {
-					bot.ircSendCommandPRIVMSG("Status update failed!", target);
+					sendPM(target, "Status update failed!");
 				} else {
-					bot.ircSendCommandPRIVMSG("Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str, target);
+					sendPM(target, "Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str);
 				}
 			});
 		} else {
-			bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
+			sendPM(target, "You're not authenticated!");
 		}
 	},
 	displayUser: function(screen_name, target) {
 		twitter.users('show', {screen_name: screen_name}, twitClient, twitClientSec, function(error, data, response) {
 			if(error) {
-				bot.ircSendCommandPRIVMSG("No such user!", target);
+				sendPM(target, "No such user!");
 			} else {
-				bot.ircSendCommandPRIVMSG("\u0002@"+data.screen_name+"\u0002 ("+data.name+"): "+entities.decode(data.description).replace(/\n/g, ' ').trim(), target);
-				bot.ircSendCommandPRIVMSG("\u00033Tweets: \u000312"+addCommas(data.statuses_count)+" \u00033Following: \u000312"+addCommas(data.friends_count)+" \u00033Followers: \u000312"+addCommas(data.followers_count)+"\u000f", target);
+				sendPM(target, "\u0002@"+data.screen_name+"\u0002 ("+data.name+"): "+entities.decode(data.description).replace(/\n/g, ' ').trim());
+				sendPM(target, "\u00033Tweets: \u000312"+addCommas(data.statuses_count)+" \u00033Following: \u000312"+addCommas(data.friends_count)+" \u00033Followers: \u000312"+addCommas(data.followers_count)+"\u000f");
 			}
 		});
 	},
 	initCommands: function() {
 		var manePlugin = bot.plugins.squeebot.plugin;
-		manePlugin.commandAdd(pluginId, "tw", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-			if(simplified[1] != null) {
-				var msg = message.split(' ').slice(1).join(' ');
-				pluginObj.sendTweet(nick, msg, target);
-			}
-		});
+		sendPM = manePlugin.sendPM;
+		log = manePlugin.mylog;
 
 		manePlugin.commandAdd(pluginId, "twitter", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-			var isOp = manePlugin.permlevel(pretty.rawdata[0].split(' ')[0]) >= 2;
-			var msg, list, i, str, datr, id, iud;
-			if(simplified[1] === "status" && simplified[2] != null) {
-				if(!isOp) {
-					bot.ircSendCommandPRIVMSG(nick+": You do not have permission to execute this command!", target);
+			sendPM(target, nick+": Please specify a sub-command!");
+		}, "- Twitter integration");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "tweet", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			let msg = message.split(' ').slice(2).join(' ');
+			pluginObj.sendTweet(nick, msg, target);
+		}, "<tweet> - Post a tweet");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "display", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			pluginObj.sendTweetResponse(simplified[1], target, 1);
+		}, "<tweetid> - Display a tweet");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "auth", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] != null) {
+				if(simplified[1].toLowerCase() == "cancel") {
+					if('reqtokens-'+nick.toLowerCase() in twitterData) {
+						delete twitterData['reqtokens-'+nick.toLowerCase()];
+						sendPM(target, "Authentication cancelled.");
+					} else {
+						sendPM(target, "You're not currently in authentication process.");
+					}
 					return;
 				}
-				msg = message.split(' ').slice(2).join(' ');
-				twitter.statuses("update", {status:msg}, twitClient, twitClientSec, function(err, data){
-					if(err) {
-						bot.ircSendCommandPRIVMSG("Status update failed!", target);
+				if('reqtokens-'+nick.toLowerCase() in twitterData) {
+					let tokens = twitterData['reqtokens-'+nick.toLowerCase()];
+					twitter.getAccessToken(tokens.req, tokens.reqsec, simplified[1], function(error, accessToken, accessTokenSecret, results) {
+						if (error) {
+							console.log(error);
+							sendPM(target, "An error occured while verifying.");
+						} else {
+							twitter.verifyCredentials(accessToken, accessTokenSecret, function(error, data, response) {
+								if (error) {
+									sendPM(target, "An error occured while trying to verify.");
+								} else {
+									sendPM(target, "You are now logged in as @"+data.screen_name+" ("+data.name+")!");
+									sendPM(target, "Use '!twitter tweet <tweet>' to tweet as yourself.");
+									twitterData['tokens-'+nick.toLowerCase()] = {acc:accessToken, accsec:accessTokenSecret};
+									twitterData[nick.toLowerCase()] = data;
+									delete twitterData['reqtokens-'+nick.toLowerCase()];
+									log(data.screen_name+" verified for "+nick);
+								}
+							});
+						}
+					});
+				}
+			} else {
+				twitter.getRequestToken(function(error, requestToken, requestTokenSecret, results){
+					if (error) {
+						console.log("Error getting OAuth request token : " + error);
+						sendPM(target, "An error occured while trying to get you a token.");
 					} else {
-						bot.ircSendCommandPRIVMSG("Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str, target);
+						twitterData['reqtokens-'+nick.toLowerCase()] = {req: requestToken, reqsec: requestTokenSecret};
+						sendPM(target, "Please authenticate yourself: https://twitter.com/oauth/authenticate?oauth_token="+requestToken);
+						sendPM(target, "Enter your pin by doing !twitter auth yourPINHere");
 					}
 				});
-			} else if(simplified[1] === "tweet" && simplified[2] != null) {
-				msg = message.split(' ').slice(2).join(' ');
-				pluginObj.sendTweet(nick, msg, target);
-			} else if(simplified[1] === "display" && simplified[2] != null) {
-				pluginObj.sendTweetResponse(simplified[2], target, 1);
-			} else if(simplified[1] === "stream" && simplified[2] != null) {
-				if(!isOp) {
-					bot.ircSendCommandPRIVMSG(nick+": You do not have permission to execute this command!", target);
-					return;
-				}
-				if(simplified[2] == "end") {
-					if(simplified[3] == null) {
-						bot.ircSendCommandPRIVMSG("Ending all twitter streams..", target);
-						for(var s in twitStreams) {
-							var t = twitStreams[s];
-							t.kill();
-							delete twitStreams[s];
+			}
+		}, "[pin] - Authenticate yourself with Twitter");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "authed", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(nick.toLowerCase() in twitterData) {
+				let datr = twitterData['tokens-'+nick.toLowerCase()];
+				twitter.verifyCredentials(datr.acc, datr.accsec, function(error, data, response) {
+					if (error) {
+						sendPM(target, "An error occured while trying to verify.");
+						sendPM(target, "If this error persists, run !twitter logout and reauthenticate.");
+					} else {
+						twitterData[nick.toLowerCase()] = data;
+						sendPM(target, "You're successfully authenticated as @"+twitterData[nick.toLowerCase()].screen_name+" ("+twitterData[nick.toLowerCase()].name+").");
+					}
+				});
+			} else {
+				sendPM(target, "You're not authenticated!");
+			}
+		}, "- Check your login status");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "user", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] == null) {
+				if(nick.toLowerCase() in twitterData) {
+					let datr = twitterData['tokens-'+nick.toLowerCase()];
+					twitter.verifyCredentials(datr.acc, datr.accsec, function(error, data, response) {
+						if (error) {
+							sendPM(target, "An error occured while trying to verify.");
+							sendPM(target, "If this error presists, run !twitter logout and reauthenticate.");
+						} else {
+							twitterData[nick.toLowerCase()] = data;
+							var xdata = twitterData[nick.toLowerCase()];
+							sendPM(target, "\u0002@"+xdata.screen_name+"\u0002 ("+xdata.name+"): "+entities.decode(xdata.description).replace(/\n/g, ' ').trim());
+							sendPM(target, "\u00033Tweets: \u000312"+addCommas(xdata.statuses_count)+" \u00033Following: \u000312"+addCommas(xdata.friends_count)+" \u00033Followers: \u000312"+addCommas(xdata.followers_count)+"\u000f");
 						}
-						return;
+					});
+				} else {
+					sendPM(target, "You're not authenticated!");
+				}
+			} else {
+				pluginObj.displayUser(simplified[2].replace(/^\@/, ''), target);
+			}
+		}, "[handle] - Display a Twitter profile");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "retweet", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] != null && simplified[1].match(/\d+/g) != null) {
+				let id = simplified[1].match(/\d+/g)[0];
+				if('tokens-'+nick.toLowerCase() in twitterData) {
+					let datr = twitterData['tokens-'+nick.toLowerCase()];
+					twitter.statuses("retweet", {id:id}, datr.acc, datr.accsec, function(err, data){
+						if(err) {
+							sendPM(target, "Failed to retweet tweet!");
+						} else {
+							sendPM(target, "Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str);
+						}
+					});
+				} else {
+					sendPM(target, "You're not authenticated!");
+				}
+			} else {
+				sendPM(target, "Invalid ID parameter!");
+			}
+		}, "<tweetid> - Retweet a tweet");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "like", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] != null && simplified[1].match(/\d+/g) != null) {
+				let id = simplified[1].match(/\d+/g)[0];
+				if('tokens-'+nick.toLowerCase() in twitterData) {
+					let datr = twitterData['tokens-'+nick.toLowerCase()];
+					twitter.favorites("create", {id:id}, datr.acc, datr.accsec, function(err, data){
+						if(err) {
+							sendPM(target, "Failed to like tweet!");
+						} else {
+							sendPM(target, "Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str);
+						}
+					});
+				} else {
+					sendPM(target, "You're not authenticated!");
+				}
+			} else {
+				sendPM(target, "Invalid ID parameter!");
+			}
+		}, "<tweetid> - Like a tweet");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "follow", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] != null) {
+				let iud = simplified[1].replace(/^\@/, '');
+				if('tokens-'+nick.toLowerCase() in twitterData) {
+					let datr = twitterData['tokens-'+nick.toLowerCase()];
+					twitter.friendships("create", {screen_name:iud}, datr.acc, datr.accsec, function(err, data){
+						if(err) {
+							sendPM(target, "Failed to follow user!");
+							console.log(err);
+						} else {
+							sendPM(target, "Successfully followed @"+data.screen_name+" ("+data.name+")!");
+						}
+					});
+				} else {
+					sendPM(target, "You're not authenticated!");
+				}
+			} else {
+				sendPM(target, "Missing screen name!");
+			}
+		}, "<handle> - Follow a user");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "unfollow", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(simplified[1] != null) {
+				let iud = simplified[1].replace(/^\@/, '');
+				if('tokens-'+nick.toLowerCase() in twitterData) {
+					let datr = twitterData['tokens-'+nick.toLowerCase()];
+					twitter.friendships("destroy", {screen_name:iud}, datr.acc, datr.accsec, function(err, data){
+						if(err) {
+							sendPM(target, "Failed to unfollowed user!");
+							console.log(err);
+						} else {
+							sendPM(target, "Successfully unfollowed @"+data.screen_name+" ("+data.name+")!");
+						}
+					});
+				} else {
+					sendPM(target, "You're not authenticated!");
+				}
+			} else {
+				sendPM(target, "Missing screen name!");
+			}
+		}, "<handle> - Unfollow a user");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "logout", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(nick.toLowerCase() in twitterData) {
+				delete twitterData[nick.toLowerCase()];
+				delete twitterData['tokens-'+nick.toLowerCase()];
+				sendPM(target, "You're now logged out.");
+			} else {
+				sendPM(target, "You're not authenticated!");
+			}
+		}, "- Log out");
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "stream", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			let i;
+			let str;
+			let list = [];
+
+			switch(simplified[1].toLowerCase()) {
+				case "end":
+					sendPM(target, "Ending all twitter streams..");
+					for(i in twitStreams) {
+						let t = twitStreams[i];
+						t.kill();
+						delete twitStreams[i];
 					}
-					var stream = twitStreams[simplified[3]];
-					if(stream) {
-						bot.ircSendCommandPRIVMSG("Ending twitter stream..", target);
-						stream.kill();
-						delete twitStreams[simplified[3]];
-					}
-				} else if(simplified[2] == "start") {
-					if(simplified[3] == null) {
-						bot.ircSendCommandPRIVMSG("Starting all twitter streams..", target);
+					break;
+				case "start":
+					if(simplified[2] == null) {
+						sendPM(target, "Starting all twitter streams..");
 						pluginObj.twitStreamsInit();
 						return;
 					}
 
-					str = simplified[3];
+					str = simplified[2];
 					if(pluginSettings.tweetTrack[str]) {
 						twitStreams[str] = new TwitterTracker(str, pluginSettings.tweetTrack[str]);
 						twitStreams[str].init();
 					}
-				} else if(simplified[2] == "list") {
-					list = [];
+					break;
+				case "list":
 					for(i in twitStreams) {
 						list.push((twitStreams[i].live === false ? "\u00034 " : "\u00033 ")+i);
 					}
-					bot.ircSendCommandPRIVMSG("Streams currently running:"+list.join(','), target);
-				} else if(simplified[2] == "listall") {
-					list = [];
+					sendPM(target, "Streams currently running:"+list.join(','));
+					break;
+				case "listall":
 					for(i in pluginSettings.tweetTrack) {
 						if(twitStreams[i])
 							list.push((twitStreams[i].live === false ? "\u00034 " : "\u00033 ")+i);
 						else
 							list.push("\u00037 "+i);
 					}
-					bot.ircSendCommandPRIVMSG("Streams available:"+list.join(','), target);
-				} else if(simplified[2] == "status") {
-					if(simplified[3] == null){
-						bot.ircSendCommandPRIVMSG("Invalid target", target);
+					sendPM(target, "Streams available:"+list.join(','));
+					break;
+				case "status":
+					if(simplified[2] == null){
+						sendPM(target, "Invalid target");
 						return;
 					}
 
-					str = twitStreams[simplified[3]];
+					str = twitStreams[simplified[2]];
 					if(str == null) {
-						bot.ircSendCommandPRIVMSG("Invalid target", target);
+						sendPM(target, "Invalid target");
 						return;
 					}
 
-					bot.ircSendCommandPRIVMSG("Twitter stream ["+str.userid+"]"+(str.user_handle != null ? " (\u0002@"+str.user_handle+"\u0002)" : "")+" is "+(str.live === false ? "\u00034Offline" : "\u00033Online")+"\u000f broadcasting to: "+str.channels.join(', '), target);
-				}
-			} else if(simplified[1] == "admin") {
-				if(!isOp) {
-					bot.ircSendCommandPRIVMSG(nick+": You do not have permission to execute this command!", target);
-					return;
-				}
-				if(nick.toLowerCase() in twitterData) {
-					bot.ircSendCommandPRIVMSG(nick+": Please log out before using admin account!", target);
-					return;
-				}
-				twitter.verifyCredentials(pluginSettings.authinfo.client, pluginSettings.authinfo.client_secret, function(error, data, response) {
-					if (error) {
-						bot.ircSendCommandPRIVMSG(nick+": Admin account tokens failed to verify!", target);
-					} else {
-						bot.ircSendCommandPRIVMSG("You are now logged in as @"+data.screen_name+" ("+data.name+")!", target);
-						twitterData[nick.toLowerCase()] = data;
-						twitterData['tokens-'+nick.toLowerCase()] = {acc:pluginSettings.authinfo.client, accsec:pluginSettings.authinfo.client_secret};
-					}
-				});
-			} else if(simplified[1] == "auth") {
-				if(simplified[2] != null) {
-					if(simplified[2] == "cancel") {
-						if('reqtokens-'+nick.toLowerCase() in twitterData) {
-							delete twitterData['reqtokens-'+nick.toLowerCase()];
-							bot.ircSendCommandPRIVMSG("Authentication cancelled.", target);
-						} else {
-							bot.ircSendCommandPRIVMSG("You're not currently in authentication process.", target);
-						}
-						return;
-					}
-					if('reqtokens-'+nick.toLowerCase() in twitterData) {
-						var tokens = twitterData['reqtokens-'+nick.toLowerCase()];
-						twitter.getAccessToken(tokens.req, tokens.reqsec, simplified[2], function(error, accessToken, accessTokenSecret, results) {
-						    if (error) {
-						        console.log(error);
-						        bot.ircSendCommandPRIVMSG("An error occured while verifying.", target);
-						    } else {
-						        twitter.verifyCredentials(accessToken, accessTokenSecret, function(error, data, response) {
-								    if (error) {
-								        bot.ircSendCommandPRIVMSG("An error occured while trying to verify.", target);
-								    } else {
-								        bot.ircSendCommandPRIVMSG("You are now logged in as @"+data.screen_name+" ("+data.name+")!", target);
-								        bot.ircSendCommandPRIVMSG("Use '!twitter tweet <tweet>' to tweet as yourself.", target);
-								        twitterData['tokens-'+nick.toLowerCase()] = {acc:accessToken, accsec:accessTokenSecret};
-								        twitterData[nick.toLowerCase()] = data;
-								        delete twitterData['reqtokens-'+nick.toLowerCase()];
-								        console.log(data.screen_name+" verified for "+nick);
-								    }
-								});
-						    }
-						});
-					}
-				} else {
-					twitter.getRequestToken(function(error, requestToken, requestTokenSecret, results){
-					    if (error) {
-					        console.log("Error getting OAuth request token : " + error);
-					        bot.ircSendCommandPRIVMSG("An error occured while trying to get you a token.", target);
-					    } else {
-					    	twitterData['reqtokens-'+nick.toLowerCase()] = {req: requestToken, reqsec: requestTokenSecret};
-					        bot.ircSendCommandPRIVMSG("Please authenticate yourself: https://twitter.com/oauth/authenticate?oauth_token="+requestToken, target);
-					        bot.ircSendCommandPRIVMSG("Enter your pin by doing !twitter auth yourPINHere", target);
-					    }
-					});
-				}
-			} else if(simplified[1] == "authed") {
-				if(nick.toLowerCase() in twitterData) {
-					datr = twitterData['tokens-'+nick.toLowerCase()];
-					twitter.verifyCredentials(datr.acc, datr.accsec, function(error, data, response) {
-					    if (error) {
-					        bot.ircSendCommandPRIVMSG("An error occured while trying to verify.", target);
-					        bot.ircSendCommandPRIVMSG("If this error presists, run !twitter logout and reauthenticate.", target);
-					    } else {
-					        twitterData[nick.toLowerCase()] = data;
-					        bot.ircSendCommandPRIVMSG("You're successfully authenticated as @"+twitterData[nick.toLowerCase()].screen_name+" ("+twitterData[nick.toLowerCase()].name+").", target);
-					    }
-					});
-				} else {
-					bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-				}
-			} else if(simplified[1] == "user") {
-				if(simplified[2] == null) {
-					if(nick.toLowerCase() in twitterData) {
-						datr = twitterData['tokens-'+nick.toLowerCase()];
-						twitter.verifyCredentials(datr.acc, datr.accsec, function(error, data, response) {
-						    if (error) {
-						        bot.ircSendCommandPRIVMSG("An error occured while trying to verify.", target);
-						        bot.ircSendCommandPRIVMSG("If this error presists, run !twitter logout and reauthenticate.", target);
-						    } else {
-						        twitterData[nick.toLowerCase()] = data;
-						        var xdata = twitterData[nick.toLowerCase()];
-						        bot.ircSendCommandPRIVMSG("\u0002@"+xdata.screen_name+"\u0002 ("+xdata.name+"): "+entities.decode(xdata.description).replace(/\n/g, ' ').trim(), target);
-						        bot.ircSendCommandPRIVMSG("\u00033Tweets: \u000312"+addCommas(xdata.statuses_count)+" \u00033Following: \u000312"+addCommas(xdata.friends_count)+" \u00033Followers: \u000312"+addCommas(xdata.followers_count)+"\u000f", target);
-						    }
-						});
-					} else {
-						bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-					}
-				} else {
-					pluginObj.displayUser(simplified[2].replace(/^\@/, ''), target);
-				}
-			} else if(simplified[1] == "retweet") {
-				if(simplified[2]!=null && simplified[2].match(/\d+/g) != null) {
-					id = simplified[2].match(/\d+/g)[0];
-					if('tokens-'+nick.toLowerCase() in twitterData) {
-						datr = twitterData['tokens-'+nick.toLowerCase()];
-						twitter.statuses("retweet", {id:id}, datr.acc, datr.accsec, function(err, data){
-							if(err) {
-								bot.ircSendCommandPRIVMSG("Failed to retweet tweet!", target);
-							} else {
-								bot.ircSendCommandPRIVMSG("Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str, target);
-							}
-						});
-					} else {
-						bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-					}
-				} else {
-					bot.ircSendCommandPRIVMSG("Invalid ID parameter!", target);
-				}
-			} else if(simplified[1] == "like") {
-				if(simplified[2]!=null && simplified[2].match(/\d+/g) != null) {
-					id = simplified[2].match(/\d+/g)[0];
-					if('tokens-'+nick.toLowerCase() in twitterData) {
-						datr = twitterData['tokens-'+nick.toLowerCase()];
-						twitter.favorites("create", {id:id}, datr.acc, datr.accsec, function(err, data){
-							if(err) {
-								bot.ircSendCommandPRIVMSG("Failed to like tweet!", target);
-							} else {
-								bot.ircSendCommandPRIVMSG("Success! https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str, target);
-							}
-						});
-					} else {
-						bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-					}
-				} else {
-					bot.ircSendCommandPRIVMSG("Invalid ID parameter!", target);
-				}
-			} else if(simplified[1] == "follow") {
-				if(simplified[2]!=null) {
-					iud = simplified[2].replace(/^\@/, '');
-					if('tokens-'+nick.toLowerCase() in twitterData) {
-						datr = twitterData['tokens-'+nick.toLowerCase()];
-						twitter.friendships("create", {screen_name:iud}, datr.acc, datr.accsec, function(err, data){
-							if(err) {
-								bot.ircSendCommandPRIVMSG("Failed to follow user!", target);
-								console.log(err);
-							} else {
-								bot.ircSendCommandPRIVMSG("Successfully followed @"+data.screen_name+" ("+data.name+")!", target);
-							}
-						});
-					} else {
-						bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-					}
-				} else {
-					bot.ircSendCommandPRIVMSG("Missing screen name!", target);
-				}
-			} else if(simplified[1] == "unfollow") {
-				if(simplified[2]!=null) {
-					iud = simplified[2].replace(/^\@/, '');
-					if('tokens-'+nick.toLowerCase() in twitterData) {
-						datr = twitterData['tokens-'+nick.toLowerCase()];
-						twitter.friendships("destroy", {screen_name:iud}, datr.acc, datr.accsec, function(err, data){
-							if(err) {
-								bot.ircSendCommandPRIVMSG("Failed to unfollowed user!", target);
-								console.log(err);
-							} else {
-								bot.ircSendCommandPRIVMSG("Successfully unfollowed @"+data.screen_name+" ("+data.name+")!", target);
-							}
-						});
-					} else {
-						bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-					}
-				} else {
-					bot.ircSendCommandPRIVMSG("Missing screen name!", target);
-				}
-			} else if(simplified[1] == "logout") {
-				if(nick.toLowerCase() in twitterData) {
-					bot.ircSendCommandPRIVMSG("Logging you out..", target);
-					delete twitterData[nick.toLowerCase()];
-					delete twitterData['tokens-'+nick.toLowerCase()];
-				} else {
-					bot.ircSendCommandPRIVMSG("You're not authenticated!", target);
-				}
-			} else if(simplified[1] == "help") {
-				bot.ircSendCommandPRIVMSG("\u00033Commands: \u00037status, stream, admin, \u00033tweet, auth, authed, logout, display, like, retweet, follow, unfollow, user", target);
-			} else {
-				bot.ircSendCommandPRIVMSG("Invalid command!", target);
+					sendPM(target, "Twitter stream ["+str.userid+"]"+(str.user_handle != null ? " (\u0002@"+str.user_handle+"\u0002)" : "")+" is "+(str.live === false ? "\u00034Offline" : "\u00033Online")+"\u000f broadcasting to: "+str.channels.join(', '));
+					break;
 			}
-		}, "<command> [<args>] - twitter integration");
+		}, "[end|start|list|listall|status] [<streamid>] - Stream management", 3);
+
+		manePlugin.commandAddSubcommand(pluginId, "twitter", "admin", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
+			if(nick.toLowerCase() in twitterData) {
+				bot.ircSendCommandPRIVMSG(nick+": Please log out before using admin account!", target);
+				return;
+			}
+			twitter.verifyCredentials(pluginSettings.authinfo.client, pluginSettings.authinfo.client_secret, function(error, data, response) {
+				if (error) {
+					bot.ircSendCommandPRIVMSG(nick+": Admin account tokens failed to verify!", target);
+				} else {
+					bot.ircSendCommandPRIVMSG("You are now logged in as @"+data.screen_name+" ("+data.name+")!", target);
+					twitterData[nick.toLowerCase()] = data;
+					twitterData['tokens-'+nick.toLowerCase()] = {acc:pluginSettings.authinfo.client, accsec:pluginSettings.authinfo.client_secret};
+				}
+			});
+		}, "- Login as admin", 3);
 
 		//plugin is ready
 		exports.ready = true;
@@ -523,16 +509,16 @@ module.exports.main = function (i, b) {
 	}
 
 	twitter = new twitterAPI({
-	    consumerKey: pluginSettings.authinfo.app,
-	    consumerSecret: pluginSettings.authinfo.app_secret,
-	    callback: 'oob'
+		consumerKey: pluginSettings.authinfo.app,
+		consumerSecret: pluginSettings.authinfo.app_secret,
+		callback: 'oob'
 	});
 
 	twitter.verifyCredentials(pluginSettings.authinfo.client, pluginSettings.authinfo.client_secret, function(error, data, response) {
 		if (error) {
-			console.log("\x1b[1;35m -*-\x1b[0m Twitter credentials are invalid!");
+			log("\x1b[1;35m -*-\x1b[0m Twitter credentials are invalid!");
 		} else {
-			console.log("\x1b[1;35m -*-\x1b[0m Twitter credentials are valid! Twitter module ready");
+			log("\x1b[1;35m -*-\x1b[0m Twitter credentials are valid! Twitter module ready");
 			twitClient = pluginSettings.authinfo.client;
 			twitClientSec = pluginSettings.authinfo.client_secret;
 			twitterData[settings.botName] = data;
