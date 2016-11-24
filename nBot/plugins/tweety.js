@@ -139,11 +139,12 @@ var TwitterTracker = function(userid, channels) {
 //main plugin object
 var pluginObj = {
 	sendTweetResponse: function(tweetId, target, showTwo) {
-		twitter.statuses("show", {id:tweetId}, twitClient, twitClientSec, function(err, data){
+		twitter.statuses("show", {id:tweetId}, twitClient, twitClientSec, function(err, data) {
 			if(err) {
 				sendPM(target, "Status fetch failed!");
 			} else {
-				sendPM(target, "\u000310Twitter\u0003 \u0002@"+data.user.screen_name+"\u0002: "+entities.decode(data.text).replace(/\n/g, ' ').trim());
+				sendPM(target, "\u000310Twitter\u0003 \u00034♥ "+data.favorite_count+"\u0003 \u00033↱↲ "+data.retweet_count+"\u0003 \u0002@"+
+					data.user.screen_name+"\u0002: "+entities.decode(data.text).replace(/\n/g, ' ').trim());
 				if(showTwo == 1)
 					sendPM(target, "\u0002Link to tweet:\u0002 https://twitter.com/"+data.user.screen_name+"/status/"+data.id_str);
 			}
@@ -185,7 +186,8 @@ var pluginObj = {
 				sendPM(target, "No such user!");
 			} else {
 				sendPM(target, "\u0002@"+data.screen_name+"\u0002 ("+data.name+"): "+entities.decode(data.description).replace(/\n/g, ' ').trim());
-				sendPM(target, "\u00033Tweets: \u000312"+addCommas(data.statuses_count)+" \u00033Following: \u000312"+addCommas(data.friends_count)+" \u00033Followers: \u000312"+addCommas(data.followers_count)+"\u000f");
+				sendPM(target, "\u00033Tweets: \u000312"+addCommas(data.statuses_count)+" \u00033Following: \u000312"+
+					addCommas(data.friends_count)+" \u00033Followers: \u000312"+addCommas(data.followers_count)+"\u000f");
 			}
 		});
 	},
@@ -281,16 +283,18 @@ var pluginObj = {
 							sendPM(target, "If this error presists, run !twitter logout and reauthenticate.");
 						} else {
 							twitterData[nick.toLowerCase()] = data;
-							var xdata = twitterData[nick.toLowerCase()];
-							sendPM(target, "\u0002@"+xdata.screen_name+"\u0002 ("+xdata.name+"): "+entities.decode(xdata.description).replace(/\n/g, ' ').trim());
-							sendPM(target, "\u00033Tweets: \u000312"+addCommas(xdata.statuses_count)+" \u00033Following: \u000312"+addCommas(xdata.friends_count)+" \u00033Followers: \u000312"+addCommas(xdata.followers_count)+"\u000f");
+							let xdata = twitterData[nick.toLowerCase()];
+							sendPM(target, "\u0002@"+xdata.screen_name+"\u0002 ("+xdata.name+"): "+
+								entities.decode(xdata.description).replace(/\n/g, ' ').trim());
+							sendPM(target, "\u00033Tweets: \u000312"+addCommas(xdata.statuses_count)+" \u00033Following: \u000312"+
+								addCommas(xdata.friends_count)+" \u00033Followers: \u000312"+addCommas(xdata.followers_count)+"\u000f");
 						}
 					});
 				} else {
 					sendPM(target, "You're not authenticated!");
 				}
 			} else {
-				pluginObj.displayUser(simplified[2].replace(/^\@/, ''), target);
+				pluginObj.displayUser(simplified[1].replace(/^\@/, ''), target);
 			}
 		}, "[handle] - Display a Twitter profile");
 
@@ -440,7 +444,8 @@ var pluginObj = {
 						return;
 					}
 
-					sendPM(target, "Twitter stream ["+str.userid+"]"+(str.user_handle != null ? " (\u0002@"+str.user_handle+"\u0002)" : "")+" is "+(str.live === false ? "\u00034Offline" : "\u00033Online")+"\u000f broadcasting to: "+str.channels.join(', '));
+					sendPM(target, "Twitter stream ["+str.userid+"]"+(str.user_handle != null ? " (\u0002@"+str.user_handle+"\u0002)" : "")+
+						" is "+(str.live === false ? "\u00034Offline" : "\u00033Online")+"\u000f broadcasting to: "+str.channels.join(', '));
 					break;
 			}
 		}, "[end|start|list|listall|status] [<streamid>] - Stream management", 3);

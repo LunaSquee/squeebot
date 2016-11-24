@@ -43,6 +43,9 @@ var ircChannelUsers;
 var week = 7*24*60*60*1000;
 var airDate;
 
+// URL checking
+const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g
+
 // Notes:
 // Get hostname from sender: data.rawdata[0].split(' ')[0][1];
 
@@ -409,29 +412,117 @@ var commands = {
 	"binary":{action: (function(simplified, nick, chan, message, data, target, isMentioned, isPM) {
 		var response = '', strArr, i, msg = message.split(' ').slice(2).join(' ');
 
-		switch (simplified[1] ? simplified[1].toUpperCase() : null) {
-			case 'ENCODE': 
-				strArr = msg.split('');
-				
-				for (i in strArr) {
-					response += ' '+('0000000'+parseInt(new Buffer(strArr[i].toString(), 'utf8').toString('hex'), 16).toString(2)).slice(-8);
-				}
-				
-				response = response.substr(1);
-				
-				break;
-			case 'DECODE': 
-				msg = msg.split(' ').join('');
-				i = 0;
-				
-				while (8*(i+1) <= msg.length) {
-					response += new Buffer(parseInt(msg.substr(8*i, 8), 2).toString(16), 'hex').toString('utf8'); i++;
-				}
-				
-				response = "Decoded: "+response;
+		try {
+			switch (simplified[1] ? simplified[1].toUpperCase() : null) {
+				case 'ENCODE': 
+					strArr = msg.split('');
+					
+					for (i in strArr) {
+						response += ' '+('0000000'+parseInt(new Buffer(strArr[i].toString(), 'utf8').toString('hex'), 16).toString(2)).slice(-8);
+					}
+					
+					response = response.substr(1);
+					
+					break;
+				case 'DECODE': 
+					msg = msg.split(' ').join('');
+					i = 0;
+					
+					while (8*(i+1) <= msg.length) {
+						response += new Buffer(parseInt(msg.substr(8*i, 8), 2).toString(16), 'hex').toString('utf8'); i++;
+					}
+					
+					response = "Decoded: "+response;
 			}
+		} catch(e) {
+			return sendPM(target, "Operation failed.");
+		}
 		sendPM(target, response);
-	}), description: "<ENCODE/DECODE> <message> - Encode/decode binary (ASCII)", categories: ["util"]},
+	}), description: "<ENCODE/DECODE> <message> - Encode/decode binary (ASCII only)", categories: ["util"]},
+
+	"hexstr":{action: (function(simplified, nick, chan, message, data, target, isMentioned, isPM) {
+		var response = '', i, msg = message.split(' ').slice(2).join(' ');
+
+		try{
+			switch(simplified[1] ? simplified[1].toUpperCase() : null) {
+				case "DECODE":
+					msg = msg.replace(/\s/g, '');
+
+					for (i = 0; i < msg.length; i += 2) 
+						response += String.fromCharCode(parseInt(msg.substr(i, 2), 16));
+
+					response = "Decoded: "+response;
+					break;
+				case "ENCODE":
+					for (i = 0; i < msg.length; i++)
+						response += msg.charCodeAt(i).toString(16)+" ";
+					break;
+			}
+		} catch(e) {
+			return sendPM(target, "Operation failed.");
+		}
+		
+		sendPM(target, response);
+	}), description: "<ENCODE/DECODE> <string> - Encode/decode hexadecimal (ASCII only)", categories: ["util"]},
+
+	"base64":{action: (function(simplified, nick, chan, message, data, target, isMentioned, isPM) {
+		var response = '', i, msg = message.split(' ').slice(2).join(' ');
+
+		try{
+			switch(simplified[1] ? simplified[1].toUpperCase() : null) {
+				case "DECODE":
+					response = "Decoded: "+(new Buffer(msg, 'base64').toString('ascii'));
+					break;
+				case "ENCODE":
+					response = new Buffer(msg).toString('base64');
+					break;
+			}
+		} catch(e) {
+			return sendPM(target, "Operation failed.");
+		}
+		
+		sendPM(target, response);
+	}), description: "<ENCODE/DECODE> <string> - Encode/decode base64 (ASCII only)", categories: ["util"]},
+
+	"gshort":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		if (settings.googleapikey == null) return;
+		let url = null;
+		let msg = message.split(' ').slice(1).join(' ');
+
+		if(!simplified[1])
+			return sendPM(target, nick+": Please provide an URL!");
+
+		if(!msg.match(urlRegex))
+			return sendPM(target, nick+": Please provide a valid URL!");
+		else
+			url = msg
+
+		HTTPPost("https://www.googleapis.com/urlshortener/v1/url?key="+settings.googleapikey, {longUrl: url}, (err, dat) => {
+			if(err || dat.error) return sendPM(target, nick+": An error occured!");
+			sendPM(target, nick+": "+dat.id);
+		}, {"Content-Type": "application/json"}, true);
+	}), description:"<url> - Shorten URLs. (goo.gl)", categories: ["util", "url"]},
+
+	"isgd":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		let url = null;
+		let msg = message.split(' ').slice(1).join(' ');
+
+		if(!simplified[1])
+			return sendPM(target, nick+": Please provide an URL!");
+
+		if(!msg.match(urlRegex))
+			return sendPM(target, nick+": Please provide a valid URL!");
+		else
+			url = encodeURIComponent(msg);
+
+		fetchJSON("https://is.gd/create.php?format=json&url="+url, (err, dat) => {
+			if(err) return sendPM(target, nick+": An error occured!");
+			if(dat.errormessage) return sendPM(target, nick+": "+dat.errormessage);
+
+			sendPM(target, nick+": "+dat.shorturl);
+		});
+	}), description:"<url> - Shorten URLs. (is.gd)", categories: ["util", "url"]},
+
 
 	"evaljs":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		eval("(function () {"+message.split(" ").slice(1).join(" ")+"})")();
@@ -1276,8 +1367,23 @@ function sendWithDelay(messages, target, time) {
 	sendMessageDelayed(0, messages, time || 1000);
 }
 
+// Scrape for title
+function getTitleOfPage(weburl, callback) {
+	fetchJSON(weburl, function(err, data, nojson) {
+		if(err && !nojson) return callback(null);
+		if(!data) return callback(null);
+		let match = data.match(/<title>(.*)<\/title>/i);
+
+		if(!match[1])
+			return callback(null);
+
+		callback(match[1]);
+	});
+}
+
 // Grab JSON from an url 
-function fetchJSON(link, callback, extendedHeaders) {
+function fetchJSON(link, callback, extendedHeaders, lback) {
+	if(lback && lback >= 4) return; // Prevent infinite loop requests
 	var parsed = url.parse(link);
 	var opts = {
 		host: parsed.host,
@@ -1297,7 +1403,12 @@ function fetchJSON(link, callback, extendedHeaders) {
 	var httpModule = parsed.protocol === 'https:' ? require('https') : require('http');
 	httpModule.get(opts, function (res) {
 		if (res.statusCode === 302 || res.statusCode === 301) {
-			fetchJSON.call(this, res.headers.location, callback, extendedHeaders);
+			if(!lback)
+				lback = 1;
+			else
+				lback += 1;
+
+			fetchJSON.call(this, res.headers.location, callback, extendedHeaders, lback);
 			return;
 		}
 		var data = '';
@@ -1312,7 +1423,7 @@ function fetchJSON(link, callback, extendedHeaders) {
 				obj = JSON.parse(data);
 			}
 			catch (err) {
-				callback(err, data);
+				callback(err, data, true);
 				return;
 			}
 			callback(null, obj);
@@ -1325,9 +1436,13 @@ function fetchJSON(link, callback, extendedHeaders) {
 var getJSON = fetchJSON; // Just for the sake of making sense
 
 // POST data to an url, expects a JSON response ("http://host:port/data", {heads: null}, function(error, data, res) {  }, {\"x-toast\": true})
-function HTTPPost(link, postdata, callback, headers) {
+function HTTPPost(link, postdata, callback, headers, jsonData) {
 	var parsed = url.parse(link);
 	var post_data = qs.stringify(postdata);
+	
+	if(jsonData)
+		post_data = JSON.stringify(postdata);
+
 	var post_options = {
 		host: parsed.host,
 		port: parsed.port,
@@ -1554,7 +1669,7 @@ function DBTagConstruct(taglist) {
 		res.push(" \u0002"+t+" more..");
 	}
 
-	return "\u00036[\u000f"+res.join(",")+" \u00036]\u000f";
+	return "\u00036[\u0003"+res.join(",")+" \u00036]\u0003";
 }
 
 // Kick on NSFW derpibooru links
@@ -1669,13 +1784,9 @@ function findUrls(text) {
 	var urlArray = [];
 	var url;
 	var matchArray;
-	var regexToken = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g;
 
-	while((matchArray = regexToken.exec(source))!== null) {
-		let token = matchArray[0];
-		if (token.containsKeywordIn(urlsToFind)) {
-			urlArray.push(token);
-		} 
+	while((matchArray = urlRegex.exec(source))!== null) {
+		urlArray.push(matchArray[0]);
 	}
 	return urlArray;
 }
@@ -1777,10 +1888,27 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 		getSpotifySongFromID(spotrex[1], target);
 	} else if(findUrls(message).length > 0) {
 		let link = findUrls(message)[0]; // Only handle the first link provided
+		let matched = false;
+
 		for(let handle in urls) {
-			if(link.indexOf(handle) != -1)
+			if(link.indexOf(handle) != -1) {
 				urls[handle].action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+				matched = true;
+				break;
+			}
 		}
+
+		if(matched) return;
+
+		getTitleOfPage(link, function(title) {
+			if(!title) return;
+			if(title == link) return;
+
+			if(title.length > 120)
+				title = title.substring(0, 120)+"...";
+
+			sendPM(target, "\u00036[\u0003 "+title+" \u00036]\u0003");
+		});
 	} else {
 		let mesgmatcher = message.toLowerCase().replace(/\:|\,|\'|\!|\?|\./g, ' ').trim().split(' ');
 		for(let i in responselist) {
@@ -2133,14 +2261,9 @@ var SettingsConstructor = function (modified) {
 			nBotLoggerOverride: true,
 			calendars: [],
 			nextepisode: {
-				date: [2016, 2, 26, 16, 0, 0], 
-				countTimes: 26, 
+				date: [2016, 2, 26, 16, 0, 0],
+				countTimes: 26,
 				inSeason: 6
-			},
-			googleauth: {
-				client_id: null,
-				client_secret: null,
-				redirect: ""
 			},
 			relay: {
 				enableRelay: false,
