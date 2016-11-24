@@ -103,7 +103,7 @@ module.exports.main = function (i, b) {
 	if (pluginSettings === undefined) {
 		pluginSettings = new SettingsConstructor();
 		settings.pluginsSettings[pluginId] = pluginSettings;
-		bot.botSettingsSave();
+		bot.im.settingsSave();
 	}
 	
 	if (bot.plugins.squeebot && bot.plugins.squeebot.ready)
