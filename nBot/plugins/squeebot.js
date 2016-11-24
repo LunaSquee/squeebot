@@ -44,7 +44,7 @@ var week = 7*24*60*60*1000;
 var airDate;
 
 // URL checking
-const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g
+const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g;
 
 // Notes:
 // Get hostname from sender: data.rawdata[0].split(' ')[0][1];
@@ -60,7 +60,7 @@ var administration = {
 var sEvents = [];
 
 // Squeebot splash
-var splash ="\x1b[1;36m____                        _           _   \n"+
+var splash ="\x1b[1;36m ____                        _           _   \n"+
 "/ ___|  __ _ _   _  ___  ___| |__   ___ | |_ \n"+
 "\\___ \\ / _` | | | |/ _ \\/ _ \\ \'_ \\ / _ \\| __|\n"+
 " ___) | (_| | |_| |  __/  __/ |_) | (_) | |_ \n"+
@@ -116,7 +116,7 @@ var commands = {
 			let channel = chan.toLowerCase();
 			let thisConnection = administration.data.connections[botInstanceSettings.connectionName];
 			if(thisConnection[channel]) {
-				if(thisConnection[channel]["info"])
+				if(thisConnection[channel].info)
 					return sendPM(target, nick+": "+thisConnection[channel].info);
 			}
 
@@ -186,7 +186,7 @@ var commands = {
 				t = simplified[1];
 
 			if(thisConnection[channel]) {
-				if(thisConnection[channel]["rules"]) {
+				if(thisConnection[channel].rules) {
 					sendPM(channel, t+": Channel Rules of "+chan+": ");
 					let rls = thisConnection[channel].rules;
 					if(typeof rls == "object") {
@@ -390,8 +390,8 @@ var commands = {
 
 	"plugin":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(simplified[1] == "load") {
-			bot.botPluginLoad(simplified[2], botInstanceSettings.pluginDir+'/'+simplified[2]+'.js');
-			botInstanceSettings.plugins.arrayValueAdd(simplified[2]);
+			bot.pluginLoad(simplified[2], botInstanceSettings.pluginDir+'/'+simplified[2]+'.js');
+			botInstanceSettings.plugins.add(simplified[2]);
 		} else if(simplified[1] == "reload") {
 			if (bot.plugins[simplified[2]]) {
 				pluginReload(simplified[2]);
@@ -404,8 +404,8 @@ var commands = {
 				}
 			}
 		} else if(simplified[1] == "unload" || simplified[1] == "remove") {
-			bot.botPluginDisable(simplified[2]);
-			botInstanceSettings.plugins.arrayValueRemove(simplified[2]);
+			bot.pluginDisable(simplified[2]);
+			botInstanceSettings.plugins.remove(simplified[2]);
 		}
 	}), description:"<load/reload/reloadall/unload> [plugin] - Plugin management", permlevel:3, categories: ["admin"]},
 
@@ -495,7 +495,7 @@ var commands = {
 		if(!msg.match(urlRegex))
 			return sendPM(target, nick+": Please provide a valid URL!");
 		else
-			url = msg
+			url = msg;
 
 		HTTPPost("https://www.googleapis.com/urlshortener/v1/url?key="+settings.googleapikey, {longUrl: url}, (err, dat) => {
 			if(err || dat.error) return sendPM(target, nick+": An error occured!");
@@ -1083,8 +1083,8 @@ function uid(len, full) {
 
 // Reload a plugin
 function pluginReload(plugin) {
-	bot.botPluginDisable(plugin);
-	bot.botPluginLoad(plugin, botInstanceSettings.pluginDir+'/'+plugin+'.js');
+	bot.pluginDisable(plugin);
+	bot.pluginLoad(plugin, botInstanceSettings.pluginDir+'/'+plugin+'.js');
 } 
 
 // Sort events by start time
@@ -1374,7 +1374,7 @@ function getTitleOfPage(weburl, callback) {
 		if(!data) return callback(null);
 		let match = data.match(/<title>(.*)<\/title>/i);
 
-		if(!match[1])
+		if(match === null || !match[1])
 			return callback(null);
 
 		callback(match[1]);
@@ -1833,7 +1833,7 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 			if(command.subcommands && simplified[1]) {
 				if(command.subcommands[simplified[1].toLowerCase()])
 					commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
-						pretty, simplified.slice(1), isMentioned, isPM)
+						pretty, simplified.slice(1), isMentioned, isPM);
 
 			} else if(command.action) {
 				command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
@@ -1846,7 +1846,7 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 		if(command.subcommands && simplified[1]) {
 			if(command.subcommands[simplified[1].toLowerCase()])
 				commandDance(command.subcommands[simplified[1].toLowerCase()], target, nick, chan, message, 
-					pretty, simplified.slice(1), isMentioned, isPM)
+					pretty, simplified.slice(1), isMentioned, isPM);
 
 		} else if(command.action) {
 			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
@@ -1869,7 +1869,7 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 			chan = null;
 
 			// Optional prefix in case of a private message
-			if(command.indexOf(PREFIX) == 0)
+			if(command.indexOf(PREFIX) === 0)
 				command = commands[command.substring(PREFIX.length)];
 			else
 				command = commands[command];
@@ -2074,7 +2074,7 @@ administration.loadFile = function(channel, callback) {
 		else
 			info('Administration data loaded.');
 	});
-}
+};
 
 administration.saveFile = function(channel, callback) {
 	if(typeof(channel) == 'function') {
@@ -2092,7 +2092,7 @@ administration.saveFile = function(channel, callback) {
 			callback();
 		}
 	});
-}
+};
 
 // Check if user is logged in via NickServ
 administration.nickservCheck = function(nickname) {
@@ -2120,7 +2120,7 @@ administration.nickservCheck = function(nickname) {
 	});
 
 	return apromise;
-}
+};
 
 administration.fetchPermission = function(channel, nickname) {
 	if(!administration.data)
@@ -2138,7 +2138,7 @@ administration.fetchPermission = function(channel, nickname) {
 		}
 
 		// Check if connection has a global list
-		if(thisConnection["global"]) {
+		if(thisConnection.global) {
 			for(let i in thisConnection.global) {
 				let perm = thisConnection.global[i];
 				if(perm.nickname == nickname)
@@ -2179,7 +2179,7 @@ administration.fetchPermission = function(channel, nickname) {
 	});
 
 	return apromise;
-}
+};
 
 // Save response list
 function response_list_save() {
@@ -2207,7 +2207,7 @@ function response_list_load(reslist) {
 
 // Log to console
 function mylog(msg) {
-	bot.debugMsg(msg);
+	bot.log(msg);
 }
 
 // Log to console #2
@@ -2308,7 +2308,7 @@ function utilizeSimpleMsg() {
 	
 	simpleMsg.msgListenerAdd(pluginId, 'NICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " is now known as "+data.newnick, "NICK");
-		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;35m --\x1b[0m "+data.nick+" is now known as "+data.newnick);
+		bot.log("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;35m --\x1b[0m "+data.nick+" is now known as "+data.newnick);
 
 		if(administration.nickserv_cache[data.nick])
 			delete administration.nickserv_cache[data.nick];
@@ -2316,12 +2316,12 @@ function utilizeSimpleMsg() {
 
 	simpleMsg.msgListenerAdd(pluginId, 'JOIN', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " has joined ", "JOIN");
-		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;32m -->\x1b[0m "+data.nick+" has joined "+data.channel);
+		bot.log("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;32m -->\x1b[0m "+data.nick+" has joined "+data.channel);
 	});
 	
 	simpleMsg.msgListenerAdd(pluginId, 'KICK', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " was kicked by "+data.by+" ("+data.reason+")", "KICK");
-		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" was kicked by "+data.by+" from "+data.channel+" ("+data.reason+")");
+		bot.log("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" was kicked by "+data.by+" from "+data.channel+" ("+data.reason+")");
 		
 		if(administration.nickserv_cache[data.nick])
 			delete administration.nickserv_cache[data.nick];
@@ -2329,7 +2329,7 @@ function utilizeSimpleMsg() {
 	
 	simpleMsg.msgListenerAdd(pluginId, 'PART', function (data) {
 		emitter.emit('newIrcMessage', data.nick, data.channel, " has left ", "PART");
-		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has left "+data.channel+" "+(data.reason == null ? data.reason : ""));
+		bot.log("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has left "+data.channel+" "+(data.reason == null ? data.reason : ""));
 		
 		if(administration.nickserv_cache[data.nick])
 			delete administration.nickserv_cache[data.nick];
@@ -2337,7 +2337,7 @@ function utilizeSimpleMsg() {
 	
 	simpleMsg.msgListenerAdd(pluginId, 'QUIT', function (data) {
 		emitter.emit('newIrcMessage', data.nick, "", " has quit ("+data.reason+")", "QUIT");
-		bot.debugMsg("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has quit ("+data.reason+")");
+		bot.log("\x1b[1;36m["+timestamp(new Date().getTime()/1000)+"]\x1b[1;31m <--\x1b[0m "+data.nick+" has quit ("+data.reason+")");
 
 		if(administration.nickserv_cache[data.nick])
 			delete administration.nickserv_cache[data.nick];
@@ -2440,7 +2440,7 @@ module.exports.main = function (i, b) {
 	if (settings === undefined) {
 		settings = new SettingsConstructor();
 		botInstanceSettings.pluginsSettings[pluginId] = settings;
-		bot.botSettingsSave();
+		bot.im.settingsSave();
 	}
 
 	NICK = botInstanceSettings.botName;
@@ -2462,31 +2462,29 @@ module.exports.main = function (i, b) {
 	calSyncInterval = true;
 	synccalendar();
 
-	console.log(splash);
+	bot.im.log(splash);
 
 	// Plugin is ready
 	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 
 	if(settings.nBotLoggerOverride) {
-		bot.botInstanceEventHandles.PRIVMSG = function(connection, data) {
+		bot.im.botEventHandle_botReceivedPRIVMSG = function(iId, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
-			process.stdout.write("\x1b[1G\x1b[K");
+			var connectionName = bot.im.iOpts[iId].connectionName||iId;
 			if(message.indexOf("\x01ACTION") === 0)
-				process.stdout.write('\x1b[1;32m['+connection+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;34m['+to+']\x1b[0m \x1b[1;92m* \x1b[0m'+nick+'\x1b[0m '+message.substring(8));
+				bot.im.log('\x1b[1;32m['+connectionName+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;34m['+to+']\x1b[0m \x1b[1;92m* \x1b[0m'+nick+'\x1b[0m '+message.substring(8));
 			else
-				process.stdout.write('\x1b[1;32m['+connection+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;34m['+to+']\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;92m>\x1b[0m '+message);
-			process.stdout.write('\x0a');
+				bot.im.log('\x1b[1;32m['+connectionName+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;34m['+to+']\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;92m>\x1b[0m '+message);
 		};
 
-		bot.botInstanceEventHandles.NOTICE = function(connection, data) {
+		bot.im.botEventHandle_botReceivedNOTICE = function(iId, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
 				message = data[5]||data[4][1];
-			process.stdout.write("\x1b[1G\x1b[K");
-			process.stdout.write('\x1b[1;32m['+connection+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;33m[NOTICE('+to+')]\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;32m>\x1b[0m '+message);
-			process.stdout.write('\x0a');
+			var connectionName = bot.im.iOpts[iId].connectionName||iId;
+			bot.im.log('\x1b[1;32m['+connectionName+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[1;33m[NOTICE('+to+')]\x1b[0m \x1b[1;92m<\x1b[0m'+nick+'\x1b[1;32m>\x1b[0m '+message);
 		};
 	}
 	//check and utilize dependencies

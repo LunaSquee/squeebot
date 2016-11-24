@@ -510,7 +510,7 @@ module.exports.main = function (i, b) {
 	if (pluginSettings === undefined) {
 		pluginSettings = new SettingsConstructor();
 		settings.pluginsSettings[pluginId] = pluginSettings;
-		bot.botSettingsSave();
+		bot.im.settingsSave();
 	}
 
 	twitter = new twitterAPI({
@@ -532,8 +532,6 @@ module.exports.main = function (i, b) {
 			}
 		}
 	});
-
-	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 
 	if (bot.plugins.squeebot && bot.plugins.squeebot.ready)
 		pluginObj.initCommands();

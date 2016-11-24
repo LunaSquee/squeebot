@@ -84,11 +84,16 @@ var pluginObj = {
 				}
 	        }, {"Client-ID": pluginSettings.api.client});
 		}, "[<channel>] [args] - Twitch.tv handle");
+
+		//plugin is ready
+		exports.ready = true;
+		bot.emitBotEvent('botPluginReadyEvent', pluginId);
 	}
 };
 
 //exports
 module.exports.plugin = pluginObj;
+module.exports.ready = false;
 
 //reserved functions
 
@@ -116,12 +121,9 @@ module.exports.main = function (i, b) {
 	if (pluginSettings === undefined) {
 		pluginSettings = new SettingsConstructor();
 		settings.pluginsSettings[pluginId] = pluginSettings;
-		bot.botSettingsSave();
+		bot.im.settingsSave();
 	}
 	
 	if (bot.plugins.squeebot && bot.plugins.squeebot.ready)
 		pluginObj.initCommands();
-
-	//plugin is ready
-	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 };
