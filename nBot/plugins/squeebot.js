@@ -7,20 +7,22 @@
 // Have fun!
 
 // Modules
-var net = require('net');
-var url = require('url');
-var util = require('util');
-var readline = require('readline');
-var gamedig = require('gamedig');
-var fs = require('fs');
-var events = require("events");
-var emitter = new events.EventEmitter();
-var exec = require("child_process").exec;
-var qs = require('qs');
-var path = require('path');
+const net = require('net');
+const url = require('url');
+const util = require('util');
+const readline = require('readline');
+const gamedig = require('gamedig');
+const fs = require('fs');
+const events = require("events");
+const emitter = new events.EventEmitter();
+const exec = require("child_process").exec;
+const qs = require('qs');
+const path = require('path');
+const HTMLEntities = require('html-entities').AllHtmlEntities,
+	  entities = new HTMLEntities();
 
-var squeeDir = __dirname+'/../squeebot/';
-var alpaca = require(squeeDir+'alpaca.json');
+const squeeDir = __dirname+'/../squeebot/';
+const alpaca = require(squeeDir+'alpaca.json');
 
 var responses = 'generic.json';
 var responselist = [];
@@ -40,11 +42,11 @@ var settings;
 var ircChannelUsers;
 
 // Episode countdown (!nextep)
-var week = 7*24*60*60*1000;
+const week = 7*24*60*60*1000;
 var airDate;
 
 // URL checking
-const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)|((mailto:)?[_.\w-]+@([\w][\w\-]+\.)+[a-zA-Z]{2,3})/g;
+const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)/g;
 
 // Notes:
 // Get hostname from sender: data.rawdata[0].split(' ')[0][1];
@@ -377,9 +379,14 @@ var commands = {
 			sendPM(target, /*(counter == 1 ? "First" : "Next") + */"Next Season "+settings.nextepisode.inSeason+" episode airs in %s", readableTime(timeLeft, true));
 		}
 		//commands["event"].action(["event", "episode"], nick, chan, message, pretty, target);
-	}),description:"- Time left until next pony episode.", categories: ["mlp-episodes"]},
+	}), description:"- Time left until next pony episode.", categories: ["mlp-episodes"]},
 
 	"nothing":{description:"- Does absolutely nothing.", categories: ["fun"]},
+	
+	"me":{action:(function(simplified, nick, chan, message, pretty, target) {
+		sendPM(target, nick+": I am me, you are "+nick+".");
+	}), description:"- How do I help you?", categories: ["fun"]},
+
 	"alpaca":{action: function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
 			nick = simplified[1];
@@ -484,7 +491,7 @@ var commands = {
 		sendPM(target, response);
 	}), description: "<ENCODE/DECODE> <string> - Encode/decode base64 (ASCII only)", categories: ["util"]},
 
-	"gshort":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+	"googl":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if (settings.googleapikey == null) return;
 		let url = null;
 		let msg = message.split(' ').slice(1).join(' ');
@@ -850,6 +857,18 @@ let urls = {
 		if(det) {
 			getSpotifySongFromID(det, target);
 		}
+	})},
+	"default": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		// If no other url matches, this will be run
+		getTitleOfPage(link, function(title) {
+			if(!title) return;
+			if(title == link) return;
+
+			if(title.length > 120)
+				title = title.substring(0, 120)+"...";
+
+			sendPM(target, "\u00036[\u0003 "+title+" \u00036]\u0003");
+		});
 	})}
 };
 
@@ -1377,7 +1396,7 @@ function getTitleOfPage(weburl, callback) {
 		if(match === null || !match[1])
 			return callback(null);
 
-		callback(match[1]);
+		callback(entities.decode(match[1]));
 	});
 }
 
@@ -1387,9 +1406,12 @@ function fetchJSON(link, callback, extendedHeaders, lback) {
 	var parsed = url.parse(link);
 	var opts = {
 		host: parsed.host,
+		port: parsed.port,
 		path: parsed.path,
 		"headers":{
-			"User-Agent": "Squeebot/nBot"
+			"User-Agent": "Squeebot/nBot",
+			"Accept": "*/*",
+			"Accept-Language": "en-GB,en;q=0.5"
 		}
 	};
 
@@ -1898,17 +1920,8 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 			}
 		}
 
-		if(matched) return;
-
-		getTitleOfPage(link, function(title) {
-			if(!title) return;
-			if(title == link) return;
-
-			if(title.length > 120)
-				title = title.substring(0, 120)+"...";
-
-			sendPM(target, "\u00036[\u0003 "+title+" \u00036]\u0003");
-		});
+		if(!matched && urls.default) 
+			urls.default.action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
 	} else {
 		let mesgmatcher = message.toLowerCase().replace(/\:|\,|\'|\!|\?|\./g, ' ').trim().split(' ');
 		for(let i in responselist) {
@@ -2054,7 +2067,7 @@ administration.loadFile = function(channel, callback) {
 		if (err) {
 			info("Administration data failed to load. Initialized a blank one.");
 
-			administration.data = {superuser: null, connections: {}};
+			administration.data = {connections: {}};
 			administration.data.connections[botInstanceSettings.connectionName] = {};
 			
 			if(err.code === 'ENOENT')
@@ -2132,8 +2145,8 @@ administration.fetchPermission = function(channel, nickname) {
 		let nickMatch = null;
 
 		// Check if nickname is superuser.
-		if(administration.data.superuser.nickname == nickname) {
-			nickMatch = administration.data.superuser;
+		if(thisConnection.superuser && thisConnection.superuser.nickname == nickname) {
+			nickMatch = thisConnection.superuser;
 			checkChan = false;
 		}
 
@@ -2468,6 +2481,11 @@ module.exports.main = function (i, b) {
 	bot.emitBotEvent('botPluginReadyEvent', pluginId);
 
 	if(settings.nBotLoggerOverride) {
+		bot.im.botLogMessageHandle = function(iId, data) {
+			var connectionName = bot.im.iOpts[iId].connectionName||iId;
+			bot.im.log('\x1b[1;32m['+connectionName+']\x1b[1;36m['+timestamp(new Date().getTime()/1000)+']\x1b[0m'+data);
+		};
+
 		bot.im.botEventHandle_botReceivedPRIVMSG = function(iId, data) {
 			var nick = data[1][0], 
 				to = data[4][0], 
