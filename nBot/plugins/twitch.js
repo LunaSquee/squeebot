@@ -34,6 +34,8 @@ var events = require('events');
 var exec = require('child_process').exec;
 var path = require('path');
 
+var manePlugin;
+
 var pluginDisabled = false;
 
 //settings constructor
@@ -54,11 +56,42 @@ var SettingsConstructor = function (modified) {
 
 //main plugin object
 var pluginObj = {
-	updateProfile: function(nick, feedbackTarget, args) {
-
+	twitchStreamer: function(streamer, target, url) {
+		manePlugin.fetchJSON("https://api.twitch.tv/kraken/streams/"+streamer, function(error, content) {
+			if(error===null) {
+				if(content.stream != null) {
+					manePlugin.sendPM(target, "\u00036Twitch\u000312 \""+content.stream.channel.status+"\" \u000312"+content.stream.channel.display_name+" "+(content.stream.game != null ? "\u00033Playing \u000312"+content.stream.game : "\u00033Playing nothing")+" \u00033Viewers: \u000311"+content.stream.viewers+
+						(url ? " \u00033Livestream: \u000312http://www.twitch.tv/"+streamer : ""));
+				} else {
+					if(content.status === 404)
+						manePlugin.sendPM(target, "\u00034"+content.message);
+					else
+						manePlugin.sendPM(target, "\u00034The livestream is offline"+
+							(url ? " \u00033Livestream: \u000312http://www.twitch.tv/"+streamer : ""));
+				}
+			} else {
+				manePlugin.sendPM(target, "\u00034An error occured with the request to Twitch API");
+			}
+		}, {"Client-ID": pluginSettings.api.client});
+	},
+	twitchVideo: function(id, target, url) {
+		manePlugin.fetchJSON("https://api.twitch.tv/kraken/videos/" + id, function(error, content) {
+			console.log(content)
+			if(error===null) {
+				if(content.title != null) {
+					manePlugin.sendPM(target, "\u00036Twitch Video\u000312 \"" + content.title + "\" \u000312"+content.channel.display_name+" "+
+						(content.game != null ? "\u00033Playing \u000312" + content.game : "\u00033Playing nothing")+" \u00033Views: \u000311"+
+						content.views + (url ? " \u00033Livestream: \u000312http://www.twitch.tv/videos/" + id : ""));
+				} else {
+					manePlugin.sendPM(target, "\u00034Failed to fetch video.")
+				}
+			} else {
+				manePlugin.sendPM(target, "\u00034An error occured with the request to Twitch API");
+			}
+		}, {"Client-ID": pluginSettings.api.client});
 	},
 	initCommands: function() {
-		var manePlugin = bot.plugins.squeebot.plugin;
+		manePlugin = bot.plugins.squeebot.plugin;
 		manePlugin.commandAdd(pluginId, "twitch", function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
 			var streamer = pluginSettings.trackStreamer;
 			if(simplified[1] != null) {
@@ -69,20 +102,7 @@ var pluginObj = {
 					streamer = simplified[1];
 				}
 			}
-			manePlugin.fetchJSON("https://api.twitch.tv/kraken/streams/"+streamer, function(error, content) {
-				if(error===null) {
-					if(content.stream != null) {
-						manePlugin.sendPM(target, "\u00036Twitch\u000312 \""+content.stream.channel.status+"\" \u000312"+content.stream.channel.display_name+" "+(content.stream.game != null ? "\u00033Playing \u000312"+content.stream.game : "\u00033Playing nothing")+" \u00033Viewers: \u000311"+content.stream.viewers+" \u00033Livestream: \u000312http://www.twitch.tv/"+streamer);
-					} else {
-						if(content.status === 404)
-							manePlugin.sendPM(target, "\u00034"+content.message);
-						else
-							manePlugin.sendPM(target, "\u00034The livestream is offline \u00033Livestream: \u000312http://www.twitch.tv/"+streamer);
-					}
-				} else {
-					manePlugin.sendPM(target, "\u00034An error occured with the request to Twitch API");
-				}
-	        }, {"Client-ID": pluginSettings.api.client});
+			pluginObj.twitchStreamer(streamer, target, true);
 		}, "[<channel>] [args] - Twitch.tv handle");
 
 		//plugin is ready

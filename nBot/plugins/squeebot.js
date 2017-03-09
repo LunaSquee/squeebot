@@ -15,7 +15,7 @@ const gamedig = require('gamedig');
 const fs = require('fs');
 const events = require("events");
 const emitter = new events.EventEmitter();
-const exec = require("child_process").exec;
+const cprog = require("child_process");
 const qs = require('qs');
 const path = require('path');
 const HTMLEntities = require('html-entities').AllHtmlEntities,
@@ -23,6 +23,7 @@ const HTMLEntities = require('html-entities').AllHtmlEntities,
 
 const squeeDir = __dirname+'/../squeebot/';
 const alpaca = require(squeeDir+'alpaca.json');
+const timezones = require(squeeDir+'tz.json');
 
 var responses = 'generic.json';
 var responselist = [];
@@ -47,6 +48,9 @@ var airDate;
 
 // URL checking
 const urlRegex = /(((ftp|https?):\/\/)[\-\w@:%_\+.~#?,&\/\/=]+)/g;
+
+// Execute
+var exec = cprog.exec;
 
 // Notes:
 // Get hostname from sender: data.rawdata[0].split(' ')[0][1];
@@ -76,14 +80,14 @@ var commands = {
 	"help":{action: (function(simplified, nick, chan, message, pretty, target) {
 		if(simplified[1]) {
 			if(simplified[1] === "-a") {
-				listCommands(nick, target, 1);
+				listCommands(nick, target, 1, chan);
 				return;
 			}
 			let cmdName = (simplified[1].indexOf(PREFIX) === 0 ? simplified[1].substring(1) : simplified[1]).toLowerCase();
 
-			commandHelp(cmdName, simplified, target, nick);
+			commandHelp(cmdName, simplified, target, nick, null, chan);
 		} else {
-			listCommands(nick, target);
+			listCommands(nick, target, null, chan);
 		}
 	}), description:"[command] - All Commands", categories: ["help"]},
 
@@ -101,14 +105,14 @@ var commands = {
 				sendPM(target, nick+": That is not a known command!");
 			}
 		} else {
-			listCommands(nick, target);
+			listCommands(nick, target, null, chan);
 		}
 	}), description:"[command] - Source plugin of this command", permlevel: 1, categories: ["help"]},
 
 	"squeebot":{action: (function(simplified, nick, chan, message, pretty, target) {
 		sendPM(target, "Squeebot is a plugin for nBot (by nnnn20430) written by LunaSquee.");
 		if(simplified[1] && simplified[1].toLowerCase()==="source")
-			sendPM(target, nick+", You can see the source here: https://gist.github.com/LunaSquee/95e849c9d44a4874501f");
+			sendPM(target, nick+", You can see the source here: https://github.com/LunaSquee/squeebot/tree/master/nBot");
 	}), description:"[source] - Squeebot info"},
 	
 	"info":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, pm) {
@@ -130,11 +134,19 @@ var commands = {
 		if(simplified[1] && simplified[1].toLowerCase() == "refresh")
 			return synccalendar(11);
 
-		if (sEvents.length === 0)
+		let eventsChannelFiltered = [];
+
+		for (let i in sEvents) {
+			if (sEvents[i].channels === 'all' || sEvents[i].channels.indexOf(chan) !== -1) {
+				eventsChannelFiltered.push(sEvents[i]);
+			}
+		}
+
+		if (eventsChannelFiltered.length === 0)
 			return sendPM(target, "\u0002Events: \u0002\u00034No events");
 
 		var eEvents = [];
-		sEvents.forEach(function(t) {
+		eventsChannelFiltered.forEach(function(t) {
 			var isRunning = currentRunCheck(t.eventStartTime, t.eventEndTime || 0);
 			if(isRunning === 0)
 				eEvents.push("\u00037"+t.eventName+"\u0003");
@@ -147,12 +159,20 @@ var commands = {
 	}), description:"- List events", categories: ["community"]},
 
 	"event":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, pm) {
+		let eventsChannelFiltered = [];
+
+		for (let i in sEvents) {
+			if (sEvents[i].channels === 'all' || sEvents[i].channels.indexOf(chan) !== -1) {
+				eventsChannelFiltered.push(sEvents[i]);
+			}
+		}
+
 		if(simplified[1] != null) {
 			var specify = 1;
 			if(simplified[1] == '-d')
 				specify = 2;
 			if(parseInt(simplified[specify])) {
-				var valid = sEvents[parseInt(simplified[specify]) - 1];
+				var valid = eventsChannelFiltered[parseInt(simplified[specify]) - 1];
 				if(valid) {
 					tellEvent(valid, target, specify === 1);
 				} else {
@@ -160,7 +180,7 @@ var commands = {
 				}
 			} else if(typeof simplified[specify] == "string") {
 				var amount = 0;
-				sEvents.forEach(function(t) {
+				eventsChannelFiltered.forEach(function(t) {
 					if(t.eventName.toLowerCase().indexOf(message.split(' ').slice(specify).join(' ').toLowerCase()) === 0) {
 						if(amount > 0) return;
 						tellEvent(t, target, specify === 1);
@@ -248,13 +268,6 @@ var commands = {
 			sendPM(target, nick+": https://derpibooru.org/795478");
 	}), categories: ["fun"]},
 
-	"request":{action: (function(simplified, nick, chan, message, pretty, target) {
-		if(simplified[1] && simplified[1] in bot.ircChannelUsers[chan])
-			sendPM(target, simplified[1]+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
-		else
-			sendPM(target, nick+": To request a song, simply ask us. Provide a youtube link or just the song's title and artist!");
-	}), categories: ["paraspriteradio", "community"]},
-
 	"hug":{action: (function(simplified, nick, chan, message, pretty, target) {
 		sendPMact(target, "hugs "+nick);
 	}), categories: ["fun"]},
@@ -336,35 +349,27 @@ var commands = {
 		}
 	}),description:"s<Season>e<Episode Number> - Open a pony episode", categories: ["mlp-episodes"]},
 
-	"viewers":{action: (function(simplified, nick, chan, message, pretty, target) {
-		livestreamViewerCount((function(r, a) { 
-			if(r === "offline") 
-				r = "\u00034The livestream is offline";
-			else
-				r = a;
-			sendPM(target, r+" \u00033Livestream: \u000312http://radio.djazz.se/#livestream");
-		}), 0);
-	}),alias: "livestream", categories: ["djazz", "community"]},
+	"ping":{action: (function(simplified, nick, chan, message, pretty, target) {
+		simplified = message.split(' ');
+		if (!simplified[1] || !simplified[2])
+			return sendPM(target, "pong");
 
-	"np":{action: (function(simplified, nick, chan, message, pretty, target) {
-		getCurrentSong(function(d, e, i) { 
-			if(i) { 
-				sendPM(target, "\u00033Now playing: \u000312"+d+" \u00033Listeners: \u000312"+e+" \u00033Click here to tune in: \u000312http://radio.djazz.se/");
-			} else { 
-				sendPM(target, d);
-			}
-		});
-	}), alias: "radio", categories: ["paraspriteradio"]},
+		const host = simplified[1];
+		const port = parseInt(simplified[2]);
 
-	"l":{action: (function(simplified, nick, chan, message, pretty, target) {
-		getCurrentSong(function(d, e, i) { 
-			if(i) { 
-				sendPM(target, "\u00033Listeners: \u000312"+e+" \u00033Tune in: \u000312http://radio.djazz.se/");
-			} else { 
-				sendPM(target, d);
-			}
-		});
-	}), alias: "listeners", categories: ["paraspriteradio"]},
+		if (isNaN(port))
+			return sendPM(target, nick+": Port needs to be an integer value.");
+
+		pingTcpServer(simplified[1], simplified[2], function(status, info) {
+			var statusString = "\u00034closed\u000f";
+			
+			if (status)
+				statusString = "\u00033open\u000f";
+
+			sendPM(target, "Port "+simplified[2]+" on "+simplified[1]+" is "+statusString+" ("+
+				(bot.isNumeric(info) ? info + "ms" : info) + ")");
+		})
+	}),description:"<host> <port> - Check if port is open on host", categories: ["utils"]},
 
 	"nextep":{action: (function(simplified, nick, chan, message, pretty, target) {
 		var counter = 0;
@@ -530,7 +535,6 @@ var commands = {
 		});
 	}), description:"<url> - Shorten URLs. (is.gd)", categories: ["util", "url"]},
 
-
 	"evaljs":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		eval("(function () {"+message.split(" ").slice(1).join(" ")+"})")();
 	}), description:"<code> - Run javascript code.", "permlevel":10, categories: ["admin"]},
@@ -552,6 +556,16 @@ var commands = {
 		else
 			sendPM(target, "Invalid string");
 	}), description:"<years>y <weeks>w <days>d <hours>h <minutes>m <seconds>s - Convert ywdhms to seconds.", categories: ["util"]},
+
+	"reconverttime":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		if(simplified[1] != null) {
+			let seconds = parseTimeToSeconds(message.substring(PREFIX.length+11-(isPM ? 0 : 1)))
+			if (!seconds) return;
+			sendPM(target,  readableTime(seconds, true));
+		} else {
+			sendPM(target, "Invalid string");
+		}
+	}), categories: ["util"]},
 
 	"say":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		var channel = pretty.messageARGS[1];
@@ -577,86 +591,6 @@ var commands = {
 				sendPM(target, nick+": "+targ+" has no special privilege in this channel.");
 		});
 	}), categories: ["help"]},
-
-	"skip":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		if(settings.paraspritekey == null) return;
-		var url = "http://radio.djazz.se/api/skip?apikey="+settings.paraspritekey;
-
-		fetchJSON(url, function(err, res) {
-			if(err) {
-				sendPM(target, "Skip failed.");
-			} else {
-				if(!isPM) {
-					sendPM(target, "Skipped song");
-				}
-			}
-		});
-	}),description:"- Skip the current song.", "permlevel":1, categories: ["paraspriteradio", "pradmin"]},
-
-	"announce":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		if(settings.paraspritekey == null) return;
-		var text = "";
-		if(!simplified[1]) {
-			sendPM(target, nick+": Not enough parameters!");
-			return;
-		}
-
-		text = message.split(" ").slice(1).join(" ");
-		var url = "http://radio.djazz.se/api/announce?apikey="+settings.paraspritekey+"&message="+encodeURIComponent(text);
-
-		fetchJSON(url, function(err, res) {
-			if(err) {
-				sendPM(target, "Announce failed.");
-			} else {
-				if(!isPM) {
-					sendPM(target, "Announcement sent!");
-				}
-			}
-		});
-	}),description:"[say:]<message> - Play an announcement on radio.", permlevel:1, categories: ["paraspriteradio", "pradmin"]},
-
-	"queue":{action: (function(simplified, nick, chan, message, pretty, target, mentioned, isPM) {
-		var det;
-		if(settings.paraspritekey == null) return;
-		if(!simplified[1]) {
-			sendPM(target, nick+": Not enough parameters!");
-			return;
-		}
-
-		var src = message.split(" ").slice(1).join(" ");
-
-		if(src === "") {
-			sendPM(target, nick+": Error occured!");
-			return;
-		}
-
-		var url = "http://radio.djazz.se/api/queue?apikey="+settings.paraspritekey+"&add="+encodeURIComponent(src);
-
-		fetchJSON(url, function(err, res) {
-			if(err) {
-				sendPM(target, "Queue failed.");
-			} else {
-				if(!isPM) {
-
-					if(src.indexOf("soundcloud.com") !== -1) {
-						getSoundcloudFromUrl(src, target, true);
-					} else if(src.indexOf("youtu.be/") !== -1) {
-						det = src.match(/youtu.be\/([^\?\&\#]+)/i)[1];
-						if(det) {
-							getYoutubeFromVideo(det, target, true);
-						}
-					} else if(src.indexOf("youtube.com/") !== -1) {
-						det = src.match("[\\?&]v=([^&#]*)");
-						if(det) {
-							getYoutubeFromVideo(det[1], target, true);
-						}
-					} else {
-						sendPM(target, "Queued!");
-					}
-				}
-			}
-		});
-	}),description:"<file/url> - Queue a song.", permlevel:1, categories: ["paraspriteradio", "pradmin"]},
 
 	"sh":{action: (function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
 		if(settings.allowShell === false) {
@@ -730,7 +664,13 @@ var commands = {
 			return;
 		}
 
-		if(!commands[simplified[1].toLowerCase()]) {
+		let command = null;
+		let tester = commandBasedOnChannel(simplified[1], chan);
+		if (tester) {
+			command = tester.command;
+		}
+
+		if(!command) {
 			sendPM(target, nick+": That is not a valid command!");
 			return;
 		}
@@ -738,11 +678,11 @@ var commands = {
 		var aliases = [];
 		for(var c in commands) {
 			var cmd = commands[c];
-			if(cmd.alias && cmd.alias == simplified[1].toLowerCase()) {
-				aliases.push("\u00033"+c+"\u0003");
+			if(cmd.alias && cmd.alias == command.toLowerCase()) {
+				aliases.push("\u00033"+c.replace(/\#[\w\d_\-\[\]]+$/i, '')+"\u0003");
 			}
-			if(c == simplified[1].toLowerCase() && "alias" in cmd) {
-				aliases.push("\u00033"+cmd.alias+"\u0003");
+			if(c == command.toLowerCase() && "alias" in cmd) {
+				aliases.push("\u00033"+cmd.alias.replace(/\#[\w\d_\-\[\]]+$/i, '')+"\u0003");
 			}
 		}
 
@@ -790,18 +730,23 @@ var commands = {
 		}
 	}), permlevel: 3, categories: ["admin"]},
 
-	"listeners":{action: (function() {commands.l.action.apply(null, arguments);}), description: "- Number of people listening to Parasprite Radio"},
-	"radio":{action: (function() {commands.np.action.apply(null, arguments);}), description: "- Current song on Parasprite Radio"},
-	"livestream":{action: (function() {commands.viewers.action.apply(null, arguments);}), description: "- Number of people watching djazz'es Livestream"},
+	"tz": {action:(function(simplified, nick, chan, message, pretty, target, isMentioned, isPM) {
+		if(!simplified[1]) 
+			return sendPM(target, nick+": Specify time zone");
+		
+		let tzn = simplified[1].toUpperCase();
+
+		if (!timezones[tzn])
+			return sendPM(target, nick+": That time zone abbreviation is not in our list.");
+
+		sendPM(target, offsetTZStr(timezones[tzn], tzn));
+	}), description: "<abbrv> - Datetime in certain time zone (abbreviations only)", categories: ["util"]},
+
 	"minecraft":{action: (function() {commands.mc.action.apply(null, arguments);}), description: "[players] - Information about our Minecraft Server"},
 	"ep":{action: (function() {commands.episode.action.apply(null, arguments);}), alias: "episode"},
 	"yt":{action: (function() {commands.youtube.action.apply(null, arguments);}), alias: "youtube"},
 	"alpacas":{action: (function() {commands.alpaca.action.apply(null, arguments);})}
 };
-
-// List of urls we want to be looking for to handle them
-let urlsToFind = ["youtube.com/watch", "youtu.be/", "dailymotion.com/video/", "spotify.com/track/", "derpibooru.org/", "derpicdn.net/",
-				  "derpiboo.ru/", "soundcloud.com/", "twitter.com/"];
 
 // List of all urls that will be handled.
 let urls = {
@@ -809,22 +754,29 @@ let urls = {
 		let det = link.match("[\\?&]v=([^&#]*)");
 		if(det) {
 			getYoutubeFromVideo(det[1], target);
+			return true;
 		}
+		return false;
 	})},
 	"youtu.be/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match(/youtu.be\/([^\?\&\#]+)/i)[1];
 		if(det) {
 			getYoutubeFromVideo(det, target);
+			return true;
 		}
+		return false;
 	})},
 	"soundcloud.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		getSoundcloudFromUrl(link, target);
+		return true;
 	})},
 	"dailymotion.com/video/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match("/video/([^&#]*)")[1];
 		if(det) {
 			dailymotion(det, target);
+			return true;
 		}
+		return false;
 	})},
 	"derpiboo": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match(/derpiboo\.?ru(\.org)?\/(images\/)?(\d+[^#?&])/i);
@@ -832,8 +784,10 @@ let urls = {
 			let numbere = parseInt(det[3]);
 			if(numbere) {
 				derpibooru_handle(numbere, target, nick);
+				return true;
 			}
 		}
+		return false;
 	})},
 	"derpicdn": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match(/derpicdn\.net\/img\/?(view)?\/\d+\/\d+\/\d+\/(\d[^_\/?#]+)/i);
@@ -841,22 +795,51 @@ let urls = {
 			let numbere = parseInt(det[2]);
 			if(numbere) {
 				derpibooru_handle(numbere, target, nick);
+				return true;
 			}
 		}
+		return false;
 	})},
 	"twitter.com/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match(/twitter.com\/\w+\/status\/(\d+[^&#?\s\/])/i);
 		if(det) {
 			if("tweety" in bot.plugins) {
 				bot.plugins.tweety.plugin.sendTweetResponse(det[1], target, 0);
+				return true;
 			}
 		}
+		return false;
+	})},
+	"twitch.tv/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/twitch\.tv\/([\w_-]+)\/?(\d+)?/i);
+		if(det && det[1]) {
+			if("twitch" in bot.plugins) {
+				let at = det[1]
+				if (at === 'videos' && det[2]) {
+					bot.plugins.twitch.plugin.twitchVideo(det[2], target, false);
+				} else {
+					bot.plugins.twitch.plugin.twitchStreamer(at, target, false);
+				}
+				return true;
+			}
+		}
+		return false;
 	})},
 	"spotify.com/track/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		let det = link.match("/track/([^&#]*)")[1];
 		if(det) {
 			getSpotifySongFromID(det, target);
+			return true;
 		}
+		return false;
+	})},
+	"vid.me/": {action: (function(link, simplified, nick, chan, message, pretty, target) {
+		let det = link.match(/vid\.me\/([\w]+)/i);
+		if(det && det[1]) {
+			getVidMeFromURL(link, target);
+			return true;
+		}
+		return false;
 	})},
 	"default": {action: (function(link, simplified, nick, chan, message, pretty, target) {
 		// If no other url matches, this will be run
@@ -895,13 +878,18 @@ let privmsgFunc = {
 };
 
 // Fetch a google calendar
-function fetchCalendar(calendar, customDescription, timeFrame) {
+function fetchCalendar(calendar) {
 	if (settings.googleapikey == null) return;
 	if (calendar == null)
 		return mylog("Calendar not found.");
 
+	const customDescription = calendar.forceEventDescription;
+	const timeFrame = calendar.timeframe;
+	const c_url = calendar.url;
+	const channels = calendar.channels;
+
 	let now = Date.now();
-	let url = "https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(calendar)+"/events?key="+settings.googleapikey+
+	let url = "https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(c_url)+"/events?key="+settings.googleapikey+
 			  "&timeMin="+new Date(now-10*60*1000).toISOString()+
 			  "&timeMax="+new Date(now+timeFrame).toISOString()+"&singleEvents=true";
 
@@ -917,8 +905,17 @@ function fetchCalendar(calendar, customDescription, timeFrame) {
 			if(customDescription != null) {
 				item.description = customDescription;
 			}
+
 			if(now < item.end.getTime()) {
-				sEvents.push({eventName: item.title, eventStartTime: new Date(item.start)/1000, eventEndTime: new Date(item.end)/1000, description: item.description || ""});
+				sEvents.push(
+				{
+					calendar: calendar.name,
+					eventName: item.title, 
+					eventStartTime: new Date(item.start)/1000, 
+					eventEndTime: new Date(item.end)/1000, 
+					description: item.description || "",
+					channels: channels
+				});
 			}
 		}
 		sEvents.sort(sortStartTime);
@@ -927,16 +924,14 @@ function fetchCalendar(calendar, customDescription, timeFrame) {
 
 // Sync calendars
 function synccalendar(no) {
-	if(calSyncInterval === false && no == null)
-		return;
-	if (settings.calendars === undefined)
+	if((calSyncInterval === false && no == null) || settings.calendars === undefined)
 		return;
 
 	sEvents = [];
 	for(let e in settings.calendars) {
 		let calendar = settings.calendars[e];
 
-		fetchCalendar(calendar.url, calendar.forceEventDescription, calendar.timeframe);
+		fetchCalendar(calendar);
 	}
 
 	if(no == null)
@@ -954,17 +949,10 @@ function destroyIrcRelay() {
 	relayserver.close();
 }
 
-// Calculate someones age based on birthdate
-function calculateAge(birthday) {
-	var ageDifMs = Date.now() - birthday.getTime();
-	var ageDate = new Date(ageDifMs); // miliseconds from epoch
-	return Math.abs(ageDate.getUTCFullYear() - 1970);
-}
-
 /*
-	===================
-	NICKNAME UTILITIES!
-	===================	
+	===============
+	Misc. Utilities
+	===============
 */
 // Check if nick is op on channel
 function isOpOnChannel(user, channel) {
@@ -974,6 +962,27 @@ function isOpOnChannel(user, channel) {
 		if (ircChannelUsers[channel][user].mode.replace(/^(o|q|h|a)$/, "isOp").indexOf("isOp") != -1 ) { isUserChanOp = true; }
 	}
 	return isUserChanOp;
+}
+
+function commandBasedOnChannel(string, chan) {
+	let cmdin = null
+	let command = ''
+
+	if (commands[string] != null) {
+		cmdin = commands[string]
+		command = string
+	} else if (commands[string + chan] != null) {
+		cmdin = commands[string + chan]
+		command = string + chan
+	}
+
+	if (!cmdin) return null;
+
+	return {
+		obj: cmdin,
+		command: command,
+		prettyPrint: command.replace(/\#[\w\d_\-\[\]]+$/i, '')
+	}
 }
 
 // String representation of a permission level
@@ -999,88 +1008,12 @@ function permstring(level, color) {
 	return str;
 }
 
-// Converts prefix to mode
-function prefixToMode(prefix) {
-	var mode = "";
-	switch (prefix) {
-		case "~":
-			mode = "q";
-			break;
-		case "&":
-			mode = "a";
-			break;
-		case "@":
-			mode = "o";
-			break;
-		case "%":
-			mode = "h";
-			break;
-		case "+":
-			mode = "v";
-			break;
-		default:
-			mode = "";
-			break;
-	}
-	return mode;
+// Calculate someones age based on birthdate
+function calculateAge(birthday) {
+	var ageDifMs = Date.now() - birthday.getTime();
+	var ageDate = new Date(ageDifMs); // miliseconds from epoch
+	return Math.abs(ageDate.getUTCFullYear() - 1970);
 }
-
-// Converts mode to prefix
-function modeToPrefix(mode) {
-	var prefix = "";
-	switch (mode) {
-		case "q":
-			prefix = "~";
-			break;
-		case "a":
-			prefix = "&";
-			break;
-		case "o":
-			prefix = "@";
-			break;
-		case "h":
-			prefix = "%";
-			break;
-		case "v":
-			prefix = "+";
-			break;
-		default:
-			prefix = "";
-			break;
-	}
-	return prefix;
-}
-
-// Converts mode to text
-function modeToText(mode) {
-	var prefix = "";
-	switch (mode) {
-		case "q":
-			prefix = "Owner";
-			break;
-		case "a":
-			prefix = "Admin";
-			break;
-		case "o":
-			prefix = "Op";
-			break;
-		case "h":
-			prefix = "Halfop";
-			break;
-		case "v":
-			prefix = "Voice";
-			break;
-		default:
-			prefix = "Normal";
-			break;
-	}
-	return prefix;
-}
-
-/*
-	End of nick utils.
-	Misc. Utilities
-*/
 
 // Generate a random int betweem two ints
 function getRandomInt(min, max) {
@@ -1315,31 +1248,45 @@ function parseTimeToSeconds(string) {
 */
 
 // List all commands that have a description set
-function listCommands(nick, target, all) {
-	var comms = [];
-	var listofem = [];
+function listCommands(nick, target, all, chan) {
+	let comms = [];
+	let listofem = [];
 	comms.push("All "+NICK+" commands start with a "+PREFIX+" prefix.");
 	comms.push("Type "+PREFIX+"help <command> for more information on that command.");
-	for(var command in commands) {
-		var obj = commands[command];
+	for(let command in commands) {
+		let obj = commands[command];
+
+		if(obj.channel && (obj.channel !== chan && obj.channel !== 'global')) continue;
+
+		command = command.replace(/\#[\w\d_\-\[\]]+$/i, '');
+
 		if(all === 1) {
-			if("description" in obj) {
-				listofem.push("\u0002\u0003"+("permlevel" in obj ? "7" : "3")+command+"\u000f");
-			}
+			listofem.push("\u0002\u0003"+("permlevel" in obj ? "7" : "3")+command+"\u000f");
 		} else {
 			if("description" in obj && !("permlevel" in obj)) {
 				listofem.push("\u0002\u00033"+command+"\u000f");
 			}
 		}
 	}
+	listofem.sort()
 	comms.push(listofem.join(", "));
 	sendWithDelay(comms, target, 1000);
 }
 
 // Create a command response for !help [command]
-function commandHelp(commandName, simplified, target, nick, aliased) {
-	let commandObj = commands[commandName];
+function commandHelp(commandName, simplified, target, nick, aliased, chan) {
+	let commandObj = null
+	let tester = commandBasedOnChannel(commandName, chan)
+	if (!tester) return sendPM(target, nick+": That is not a known command!");
+
+	commandObj = tester.obj
+	commandName = tester.prettyPrint
+
 	let appendAliasCmd = null;
+
+	if(commandObj.channel && (commandObj.channel !== chan && commandObj.channel !== 'global')) {
+		return sendPM(target, nick+": That is not a known command!");
+	}
 
 	if(simplified[2] && commandObj.subcommands) {
 		if(commandObj.subcommands[simplified[2].toLowerCase()]) {
@@ -1347,8 +1294,6 @@ function commandHelp(commandName, simplified, target, nick, aliased) {
 			commandObj = commandObj.subcommands[appendAliasCmd];
 		}
 	}
-
-	if(!commandObj) return sendPM(target, nick+": That is not a known command!");
 
 	if(aliased != null) commandName = aliased;
 	let stringstream = nick+": \u0002"+PREFIX+commandName+"\u000f ";
@@ -1362,7 +1307,7 @@ function commandHelp(commandName, simplified, target, nick, aliased) {
 	if(commandObj.description)
 		stringstream += commandObj.description;
 	else if(!commandObj.description && commandObj.alias)
-		return commandHelp(commandObj.alias, target, nick, commandName);
+		return commandHelp(commandObj.alias, simplified, target, nick, commandName, chan);
 	else
 		stringstream += "- No description :(";
 
@@ -1371,6 +1316,7 @@ function commandHelp(commandName, simplified, target, nick, aliased) {
 
 	if(commandObj.alias)
 		stringstream += " \u0002\u00037[ALIAS FOR \u00033"+commandObj.alias+"\u00037]\u000f";
+
 
 	sendPM(target, stringstream);
 }
@@ -1402,7 +1348,7 @@ function getTitleOfPage(weburl, callback) {
 
 // Grab JSON from an url 
 function fetchJSON(link, callback, extendedHeaders, lback) {
-	if(lback && lback >= 4) return; // Prevent infinite loop requests
+	if(lback && lback >= 4) return callback("infinite loop!", null); // Prevent infinite loop requests
 	var parsed = url.parse(link);
 	var opts = {
 		host: parsed.host,
@@ -1509,28 +1455,6 @@ function HTTPPost(link, postdata, callback, headers, jsonData) {
 
 	post_req.write(post_data);
 	post_req.end();
-}
-
-// Get current Parasprite Radio song
-function getCurrentSong(callback) {
-	fetchJSON("http://radio.djazz.se/api/status", function(error, content) {
-		if(error === null) {
-			if(content.meta != null && content.info != null && content.info.online === true) {
-				var xt = content.meta;
-				var theTitle = new Buffer(xt.title, "utf8").toString("utf8");
-				var artist = xt.artist;
-				if(artist!=null) {
-					theTitle=theTitle+" by "+artist;
-				}
-				callback(theTitle, content.info.listeners, true);
-				return;
-			} else {
-				 callback("\u00037Parasprite Radio\u000f is \u00034offline!", "", false);
-			}
-		} else {
-			callback("\u00037Parasprite Radio\u000f is \u00034offline!", "", false);
-		}
-	});
 }
 
 // Gameserver info (This function makes me puke)
@@ -1652,6 +1576,27 @@ function getYoutubeFromVideo(id, target, isQueue) {
 	});
 }
 
+function getVidMeFromURL(urlOf, target) {
+	fetchJSON("https://api.vid.me/videoByUrl/"+encodeURIComponent(urlOf), function(error, content) {
+		if(error != null) {
+			console.log(error);
+			return sendPM(target, "Unexpected error occured.");
+		}
+
+		if (!content || content.status !== true || !content.video) {
+			return sendPM(target, "Video not found.");
+		}
+
+		let prefix = "";
+		let tw = content.video;
+
+		sendPM(target, prefix+"\u00034VidMe\u0003\u0002 \u000312\""+tw.title+"\" \u00033Views: \u000312"+
+				addCommas(tw.view_count.toString())+" \u00033Duration: \u000312"+toHHMMSS(tw.duration)+
+				" \u00037★ "+addCommas(tw.score.toString())+"\u0003 \u00033By \u000312\""+tw.user.username+"\""+
+				(tw.nsfw ? " \u00034[NSFW]" : ""));
+	});
+}
+
 var DBCategoryTag = ["suggestive", "questionable", "explicit", "safe", "grimdark", "semi-grimdark", "grotesque"];
 
 function DBTagSort(a, b) {
@@ -1711,7 +1656,9 @@ function derpibooru_handle(id, target, nick) {
 function getSoundcloudFromUrl(url, target, isQueue) {
 	if(settings.soundcloudkey == null) return;
 	let apibase = "https://api.soundcloud.com";
-	fetchJSON(apibase+"/resolve?url="+url+"&client_id="+settings.soundcloudkey, function(error, response) {
+	url = apibase+"/resolve?url="+encodeURIComponent(url)+"&client_id="+settings.soundcloudkey
+
+	fetchJSON(url, function(error, response) {
 		if(error) {
 			info("SoundCloud fetch Failed");
 			console.log(error);
@@ -1795,9 +1742,9 @@ function offsetTZ(offset) {
 }
 
 // Offset timezone from UTC (readable string)
-function offsetTZStr(offset) {
+function offsetTZStr(offset, tzn) {
 	offset = offset >= 0 ? "+"+offset : offset;
-	return new Date(offsetTZ(offset)).toUTCString()+offset;
+	return new Date(offsetTZ(offset)).toUTCString()+offset+(tzn?" ("+tzn+")":"");
 }
 
 // Finds urls in string
@@ -1813,23 +1760,44 @@ function findUrls(text) {
 	return urlArray;
 }
 
-// Livestream viewers
-function livestreamViewerCount(callback, stream, streamer) {
-	if(stream === 0) {
-		fetchJSON("http://radio.djazz.se/api/status", function(error, content) {
-			if(error===null) {
-				var view = content.livestream;
-				if(view.online===true) {
-					callback(null, "\u00033Viewers: \u000311"+view.viewers);
-				} else {
-					callback("offline", "\u00034The livestream is offline");
-				}
-			} else {
-				callback(error, "\u00034The livestream is offline");
-			}
-		});
+
+// Ping the server by connecting and quickly closing
+function pingTcpServer(host, port, callback) {
+	var isFinished = false;
+	var timeA, timeB = new Date().getTime();
+
+	function returnResults(status, info) {
+		if (!isFinished) {
+			callback(status, info); 
+			isFinished = true;
+		}
 	}
-}
+
+	if (port > 0 && port < 65536) {
+		var pingHost = net.connect({port: port, host: host}, function () {
+			timeA = new Date().getTime();
+			returnResults(true, timeA-timeB);
+			pingHost.end();
+			pingHost.destroy();
+		});
+		pingHost.setTimeout(5*1000);
+		pingHost.on('timeout', function () {
+			pingHost.end();
+			pingHost.destroy();
+			returnResults(false, 'timeout');
+		});
+		pingHost.on('error', function (e) {
+			pingHost.end();
+			pingHost.destroy();
+			returnResults(false, e);
+		});
+		pingHost.on('close', function () {
+			returnResults(false, 'closed');
+		});
+	} else {
+		returnResults(false, 'error: port out of range');
+	}
+};
 
 // Join the keys of an object
 function joinObjectKeys(object, joinWith, prefix, suffix) {
@@ -1847,6 +1815,8 @@ function joinObjectKeys(object, joinWith, prefix, suffix) {
 function commandDance(command, target, nick, chan, message, pretty, simplified, isMentioned, isPM) {
 	if(!command) return;
 
+	if(command.channel && (command.channel !== chan && command.channel !== 'global')) return;
+
 	if(command.permlevel) {
 		administration.fetchPermission(chan, nick).then(function(pl) {
 			if(pl.level < command.permlevel)
@@ -1858,7 +1828,11 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 						pretty, simplified.slice(1), isMentioned, isPM);
 
 			} else if(command.action) {
-				command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+				try {
+					command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+				} catch(e) {
+					mylog(e.stack);
+				}
 			}
 		}, function(res) {
 			mylog(nick+" was denied permission ("+res+")");
@@ -1871,8 +1845,13 @@ function commandDance(command, target, nick, chan, message, pretty, simplified, 
 					pretty, simplified.slice(1), isMentioned, isPM);
 
 		} else if(command.action) {
-			command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+			try {
+				command.action(simplified, nick, chan, message, pretty, target, isMentioned, isPM);
+			} catch(e) {
+				mylog(e.stack);
+			}
 		}
+		
 	}
 }
 
@@ -1884,20 +1863,21 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 	let spotrex = null;
 	let command = (simplified[0] != null ? simplified[0] : "").toLowerCase();
 
-	if((command.indexOf(PREFIX) === 0 && command.substring(PREFIX.length) in commands) || 
-			(isPM && simplified[0].toLowerCase() in commands)) {
+	let matched = null
 
-		if(isPM) {
-			chan = null;
+	if ((command.indexOf(PREFIX) == 0) || isPM) {
+		let basemnd = (isPM ? (command.indexOf(PREFIX) == 0 ? command.substring(PREFIX.length) : command) : command.substring(PREFIX.length))
+		let tester = commandBasedOnChannel(basemnd, chan)
 
-			// Optional prefix in case of a private message
-			if(command.indexOf(PREFIX) === 0)
-				command = commands[command.substring(PREFIX.length)];
-			else
-				command = commands[command];
+		if (!tester) { 
+			matched = null;
 		} else {
-			command = commands[command.substring(PREFIX.length)];
+			matched = tester.command
 		}
+	}
+
+	if(matched) {
+		command = commands[matched]
 
 		if(typeof(command) != 'object') return;
 
@@ -1914,8 +1894,13 @@ function handleMessage(nick, chan, message, pretty, simplified, isMentioned, isP
 
 		for(let handle in urls) {
 			if(link.indexOf(handle) != -1) {
-				urls[handle].action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
-				matched = true;
+				let handler = urls[handle]
+
+				if (handler.channel && (handler.channel !== chan && handler.channel !== 'global')) {
+					continue;
+				}
+
+				matched = handler.action(link, simplified, nick, chan, message, pretty, target, isMentioned, isPM);
 				break;
 			}
 		}
@@ -2268,7 +2253,6 @@ var SettingsConstructor = function (modified) {
 			prefix: '!',
 			googleapikey: null,
 			soundcloudkey: null,
-			paraspritekey: null,
 			stripColors: false,
 			allowShell: false,
 			nBotLoggerOverride: true,
@@ -2398,7 +2382,7 @@ module.exports.botEvent = function (event) {
 };
 
 // Functions available from outside the plugin
-module.exports.plugin = {
+let botCont = module.exports.plugin = {
 	commandAdd: function(plugin, commandName, action, description, perlevel) {
 		if(commandName in commands)
 			return null;
@@ -2426,6 +2410,28 @@ module.exports.plugin = {
 			subCommandStruct.description = description;
 		return subCommandStruct;
 	},
+	registerCommands: function(channel, obj) {
+		mylog("\x1b[1;35m -!-\x1b[0m Added "+ Object.keys(obj).length +" commands to \""+channel+"\"");
+
+		for (let i in obj) {
+			let postfix = (channel !== "global" ? channel : '')
+			let cmd = obj[i];
+
+			cmd.channel = channel;
+			commands[i + postfix] = cmd;
+
+			if (cmd.alias) cmd.alias = cmd.alias + postfix;
+		}
+	},
+	registerURLHandles: function(channel, obj) {
+		mylog("\x1b[1;35m -!-\x1b[0m Added "+ Object.keys(obj).length +" URL handles to \""+channel+"\"");
+
+		for (let i in obj) {
+			let purl = obj[i];
+			purl.channel = channel;
+			urls[i] = purl;
+		}
+	},
 	mylog: mylog,
 	administration: administration,
 	isOpOnChannel: isOpOnChannel,
@@ -2435,8 +2441,39 @@ module.exports.plugin = {
 	fetchJSON: fetchJSON,
 	HTTPPost: HTTPPost,
 	readableTime: readableTime,
-	parseTimeToSeconds: parseTimeToSeconds
+	parseTimeToSeconds: parseTimeToSeconds,
+	getSoundcloudFromUrl: getSoundcloudFromUrl,
+	getYoutubeFromVideo: getYoutubeFromVideo
 };
+
+function registerConnectionCommands() {
+	botCont.settings = settings;
+	let server = botInstanceSettings.connectionName
+	let connectionDir = squeeDir + 'connections/'+server;
+	const fs = require('fs');
+
+	if (!fs.existsSync(connectionDir))
+	    return;
+
+	fs.readdir(connectionDir, (err, files) => {
+		files.forEach(file => {
+			if (!file.indexOf('.js'))
+				return;
+
+			const cmpath = path.resolve(connectionDir+'/'+file);
+			const cmname = file.replace(".js", '');
+
+			try {
+				let cmdFile = require(cmpath);
+				cmdFile(botCont, cmname);
+
+				if (require.cache && require.cache[cmpath]) {
+					delete require.cache[cmpath];
+				}
+			} catch(e) {}
+		});
+	})
+}
 
 module.exports.ready = false;
 
@@ -2508,6 +2545,9 @@ module.exports.main = function (i, b) {
 	//check and utilize dependencies
 	if (bot.plugins.simpleMsg && bot.plugins.simpleMsg.ready)
 		utilizeSimpleMsg();
+
+	// Load channel-based commands
+	registerConnectionCommands();
 };
 
 /**
